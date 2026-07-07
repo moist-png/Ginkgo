@@ -15,7 +15,7 @@ interface SpeciesIdentifierProps {
  *  The free tier allows 500 identifications per day.
  * ============================================================================
  */
-const PLANTNET_API_KEY = '';
+const PLANTNET_API_KEY = '2b10TRyV4ebjycZmZ6Z66sGW';
 
 type Organ = 'auto' | 'leaf' | 'flower' | 'fruit' | 'bark';
 
