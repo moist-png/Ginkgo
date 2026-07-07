@@ -10,6 +10,8 @@ import { ArrowLeft, Save, FileText, Camera, TreePine, StickyNote, Eye, Download,
 import { exportSingleTreeReport } from '../utils/exportUtils';
 import { canUserEdit } from '../utils/auth';
 import { ExportModal } from './ExportModal';
+import { db } from '../utils/offline';
+import { fromDbReport, toDbReport } from '../utils/mappers';
 
 interface ReportEditorProps {
   report: ArboristReport;
@@ -18,17 +20,27 @@ interface ReportEditorProps {
 }
 
 export const ReportEditor: React.FC<ReportEditorProps> = ({ report, onSave, onBack }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'tree' | 'species' | 'height' | 'photos' | 'notes' | 'preview'>(report.siteId ? 'tree' : 'info');
-  const [editingReport, setEditingReport] = useState<ArboristReport>(report);
+  const initial = fromDbReport(report);
+  const [activeTab, setActiveTab] = useState<'info' | 'tree' | 'species' | 'height' | 'photos' | 'notes' | 'preview'>(initial.siteId ? 'tree' : 'info');
+  const [editingReport, setEditingReport] = useState<ArboristReport>(initial);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const canEdit = canUserEdit();
 
-  const handleSave = () => {
-    if (!canEdit) return;
-    const updatedReport = { ...editingReport, updatedAt: Date.now() };
-    setEditingReport(updatedReport);
-    onSave(updatedReport);
-    onBack(); // Close the editing panel and go back
+  const handleSave = async () => {
+    if (!canEdit || saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await db.upsert('reports', toDbReport(editingReport));
+      onSave(editingReport);
+      onBack(); // Close the editing panel and go back
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateReport = (updates: Partial<ArboristReport>) => {
@@ -61,42 +73,66 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({ report, onSave, onBa
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="bg-[var(--surface-raised)] shadow-sm border-b border-[var(--border)] p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="p-2 border border-[var(--border)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--forest)] transition-colors"
-              title="Export Data"
-            >
-              <Download size={16} />
-            </button>
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-            >
-              <ArrowLeft size={20} />
-              Back to Reports
-            </button>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              {editingReport.title || 'Untitled Report'}
-            </h1>
-          </div>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--forest)' }}>
+      <div className="bg-[var(--surface-raised)] shadow-sm border-b border-[var(--border)] p-3 sm:p-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+          >
+            <ArrowLeft size={20} />
+            <span className="hidden sm:inline">Back to Reports</span>
+          </button>
+          <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] truncate flex-1 min-w-0">
+            {editingReport.title || 'Untitled Report'}
+          </h1>
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="p-2 border border-[var(--border)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--forest)] transition-colors shrink-0"
+            title="Export Data"
+          >
+            <Download size={16} />
+          </button>
           {canEdit && (
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+              disabled={saving}
+              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-3 sm:px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors shrink-0 disabled:opacity-50"
             >
               <Save size={20} />
-              Save
+              <span className="hidden sm:inline">{saving ? 'Saving…' : 'Save'}</span>
             </button>
           )}
         </div>
+        {saveError && (
+          <p className="text-sm text-[#e88] mt-2">{saveError}</p>
+        )}
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <nav className="w-64 bg-[var(--forest)] border-r border-[var(--border)] p-4">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        {/* Mobile: horizontal scrolling tab strip */}
+        <nav className="md:hidden flex overflow-x-auto gap-2 p-3 border-b border-[var(--border)] bg-[var(--forest)]" style={{ WebkitOverflowScrolling: 'touch' }}>
+          {tabs.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] font-medium border border-[var(--border-bright)]'
+                    : 'text-[var(--text-secondary)] border border-[var(--border)]'
+                }`}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Desktop: sidebar */}
+        <nav className="hidden md:block w-64 bg-[var(--forest)] border-r border-[var(--border)] p-4 shrink-0">
           <ul className="space-y-2">
             {tabs.map(tab => {
               const Icon = tab.icon;

@@ -162,12 +162,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* Stat Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px' }}>
         {[
-          { label: 'Sites', value: stats.totalSites, icon: MapPin, colour: 'var(--leaf)', bg: 'rgba(90,143,90,0.1)', action: 'sites' },
-          { label: 'Active Jobs', value: stats.activeJobs, icon: Briefcase, colour: 'var(--amber)', bg: 'rgba(212,160,23,0.1)', action: 'jobs' },
-          { label: 'Completed This Month', value: stats.completedJobsThisMonth, icon: TrendingUp, colour: '#88aaee', bg: 'rgba(60,120,200,0.1)', action: 'jobs' },
           { label: 'Tree Reports', value: stats.totalReports, icon: FileText, colour: '#bb99ee', bg: 'rgba(120,80,180,0.1)', action: 'sites' },
           { label: 'Pending Quotes', value: stats.pendingQuotes, icon: Clock, colour: '#f0a060', bg: 'rgba(200,100,30,0.1)', action: 'quotes' },
-          { label: 'Total Jobs', value: stats.totalJobs, icon: TreePine, colour: 'var(--sage)', bg: 'rgba(168,200,168,0.1)', action: 'jobs' },
         ].map(({ label, value, icon: Icon, colour, bg, action }) => (
           <div key={label} onClick={() => onNavigate(action)} className="card" style={{ padding: '20px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -181,7 +177,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '20px' }}>
         {/* Upcoming Jobs */}
         <div className="card" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>

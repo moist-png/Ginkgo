@@ -4,6 +4,9 @@ import { ArrowLeft, Save, Trash2, Plus, Clock, Archive, Download, ExternalLink }
 import { exportSingleQuote } from '../utils/exportUtils';
 import { XeroIntegration } from './XeroIntegration';
 import { ExportModal } from './ExportModal';
+import { db } from '../utils/offline';
+import { supabase } from '../utils/supabase';
+import { fromDbQuote, toDbQuote } from '../utils/mappers';
 
 interface QuoteEditorProps {
   quote: Quote;
@@ -22,18 +25,31 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
   onBack,
   isNew = false
 }) => {
-  const [editingQuote, setEditingQuote] = useState<Quote>(quote);
+  const [editingQuote, setEditingQuote] = useState<Quote>(fromDbQuote(quote));
   const [showXeroModal, setShowXeroModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
-  const handleSave = () => {
-    const updatedQuote = { ...editingQuote, updatedAt: Date.now() };
-    setEditingQuote(updatedQuote);
-    onSave(updatedQuote);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await db.upsert('quotes', toDbQuote(editingQuote));
+      onSave(editingQuote);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (onDelete && window.confirm('Are you sure you want to delete this quote?')) {
+      try {
+        await supabase.from('quotes').delete().eq('id', quote.id);
+      } catch { /* still close */ }
       onDelete(quote.id);
     }
   };
@@ -86,20 +102,20 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
   return (
     <div className="h-full flex flex-col">
       <div className="bg-[var(--surface-raised)] shadow-sm border-b border-[var(--border)] p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
             >
               <ArrowLeft size={20} />
-              Back to Quotes
+              <span className="hidden sm:inline">Back to Quotes</span>
             </button>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] truncate">
               {isNew ? 'New Quote' : 'Edit Quote'}
             </h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {!isNew && onDelete && (
               <>
                 <button
@@ -136,13 +152,15 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
             )}
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+              disabled={saving}
+              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors disabled:opacity-50"
             >
               <Save size={20} />
-              Save Quote
+              {saving ? 'Saving…' : 'Save Quote'}
             </button>
           </div>
         </div>
+        {saveError && <p className="text-sm text-[#e88] mt-2">{saveError}</p>}
       </div>
 
       <div className="flex-1 overflow-auto p-6">

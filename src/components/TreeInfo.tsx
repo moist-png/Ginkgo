@@ -1,5 +1,6 @@
 import React from 'react';
 import { TreeData } from '../types';
+import { normaliseTreeData } from '../utils/mappers';
 
 interface TreeInfoProps {
   treeData: TreeData;
@@ -8,9 +9,11 @@ interface TreeInfoProps {
 }
 
 export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, onUpdate }) => {
+  const data = normaliseTreeData(treeData);
+
   const handleChange = (field: keyof TreeData, value: string | number) => {
     if (readOnly) return;
-    onUpdate({ ...treeData, [field]: value });
+    onUpdate({ ...data, [field]: value });
   };
 
   return (
@@ -24,7 +27,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
           </label>
           <input
             type="text"
-            value={treeData.treeNumber}
+            value={data.treeNumber}
             disabled={readOnly}
             onChange={(e) => handleChange('treeNumber', e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -39,7 +42,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
             </label>
             <input
               type="text"
-              value={treeData.species}
+              value={data.species}
               disabled={readOnly}
               onChange={(e) => handleChange('species', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -53,7 +56,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
             </label>
             <input
               type="text"
-              value={treeData.commonName}
+              value={data.commonName}
               disabled={readOnly}
               onChange={(e) => handleChange('commonName', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -68,7 +71,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
           </label>
           <input
             type="text"
-            value={treeData.location}
+            value={data.location}
             disabled={readOnly}
             onChange={(e) => handleChange('location', e.target.value)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -83,7 +86,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
             </label>
             <input
               type="number"
-              value={treeData.dbh}
+              value={data.dbh}
               disabled={readOnly}
               onChange={(e) => handleChange('dbh', parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -98,7 +101,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
             </label>
             <input
               type="number"
-              value={treeData.height}
+              value={data.height}
               disabled={readOnly}
               onChange={(e) => handleChange('height', parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -113,7 +116,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
             </label>
             <input
               type="number"
-              value={treeData.extensionGrowth}
+              value={data.extensionGrowth}
               disabled={readOnly}
               onChange={(e) => handleChange('extensionGrowth', parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -130,7 +133,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
             </label>
             <input
               type="number"
-              value={treeData.canopySpreadNS}
+              value={data.canopySpreadNS}
               disabled={readOnly}
               onChange={(e) => handleChange('canopySpreadNS', parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -145,7 +148,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
             </label>
             <input
               type="number"
-              value={treeData.canopySpreadEW}
+              value={data.canopySpreadEW}
               disabled={readOnly}
               onChange={(e) => handleChange('canopySpreadEW', parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -161,7 +164,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
           </label>
           <input
             type="number"
-            value={treeData.canopyCover}
+            value={data.canopyCover}
             disabled={readOnly}
             onChange={(e) => handleChange('canopyCover', parseFloat(e.target.value) || 0)}
             className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -178,7 +181,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
               Tree Health
             </label>
             <select
-              value={treeData.treeHealth}
+              value={data.treeHealth}
               disabled={readOnly}
               onChange={(e) => handleChange('treeHealth', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -196,7 +199,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
               Structure
             </label>
             <select
-              value={treeData.structure}
+              value={data.structure}
               disabled={readOnly}
               onChange={(e) => handleChange('structure', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"
@@ -214,7 +217,7 @@ export const TreeInfo: React.FC<TreeInfoProps> = ({ treeData, readOnly = false, 
               Wound Wood Development
             </label>
             <select
-              value={treeData.woundWoodDevelopment}
+              value={data.woundWoodDevelopment}
               disabled={readOnly}
               onChange={(e) => handleChange('woundWoodDevelopment', e.target.value)}
               className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent disabled:bg-[var(--surface-overlay)] disabled:cursor-not-allowed"

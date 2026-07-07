@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { ChlorophyllReading } from '../types';
 import { ArrowLeft, Save, Trash2, Plus, History, Search } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
+import { db } from '../utils/offline';
+import { fromDbChlorophyll, toDbChlorophyll } from '../utils/mappers';
 
 interface ChlorophyllEditorProps {
   reading: ChlorophyllReading;
@@ -20,12 +22,14 @@ export const ChlorophyllEditor: React.FC<ChlorophyllEditorProps> = ({
   isNew = false,
   allReadings
 }) => {
-  const [editingReading, setEditingReading] = useState<ChlorophyllReading>(reading);
+  const [editingReading, setEditingReading] = useState<ChlorophyllReading>(fromDbChlorophyll(reading));
   const [showHistory, setShowHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [existingTrees, setExistingTrees] = useState<Array<{treeId: string, species: string, location: string}>>([]);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     // Get unique trees from existing readings
@@ -44,20 +48,29 @@ export const ChlorophyllEditor: React.FC<ChlorophyllEditorProps> = ({
     setExistingTrees(uniqueTrees);
   }, [allReadings]);
 
-  const handleSave = () => {
-    const updatedReading = { ...editingReading, updatedAt: Date.now() };
-    setEditingReading(updatedReading);
-    onSave(updatedReading);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await db.upsert('chlorophyll_readings', toDbChlorophyll(editingReading));
+      onSave(editingReading);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
     setShowDeleteConfirmation(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (onDelete) {
-      onDelete(reading.id);
-    }
+  const handleConfirmDelete = async () => {
+    try {
+      await db.softDelete('chlorophyll_readings', reading.id);
+    } catch { /* still close */ }
+    if (onDelete) onDelete(reading.id);
   };
 
   const updateReading = (field: keyof ChlorophyllReading, value: any) => {
@@ -108,20 +121,20 @@ export const ChlorophyllEditor: React.FC<ChlorophyllEditorProps> = ({
   return (
     <div className="h-full flex flex-col">
       <div className="bg-[var(--surface-raised)] shadow-sm border-b border-[var(--border)] p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
             >
               <ArrowLeft size={20} />
-              Back to Readings
+              <span className="hidden sm:inline">Back to Readings</span>
             </button>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] truncate">
               {isNew ? 'New Chlorophyll Reading' : 'Edit Chlorophyll Reading'}
             </h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {treeHistory.length > 0 && (
               <button
                 onClick={() => setShowHistory(!showHistory)}
@@ -142,13 +155,15 @@ export const ChlorophyllEditor: React.FC<ChlorophyllEditorProps> = ({
             )}
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+              disabled={saving}
+              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors disabled:opacity-50"
             >
               <Save size={20} />
-              Save
+              {saving ? 'Saving…' : 'Save'}
             </button>
           </div>
         </div>
+        {saveError && <p className="text-sm text-[#e88] mt-2">{saveError}</p>}
       </div>
 
       <div className="flex-1 overflow-auto p-6">

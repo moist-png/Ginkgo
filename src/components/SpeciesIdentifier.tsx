@@ -34,8 +34,6 @@ export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [saved, setSaved] = useState(false);
-  // Lets the user paste a key in the app if they didn't edit the file above.
-  const [apiKey, setApiKey] = useState<string>(PLANTNET_API_KEY);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -64,8 +62,8 @@ export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, 
     setCandidates([]);
     setSelected(null);
 
-    if (!apiKey) {
-      setError('No PlantNet API key set. Add your free key from my.plantnet.org in the box below.');
+    if (!PLANTNET_API_KEY) {
+      setError('The tree identifier is not configured yet. Please contact your administrator.');
       return;
     }
     if (!imageFile) {
@@ -79,7 +77,7 @@ export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, 
       form.append('images', imageFile);
       form.append('organs', organ);
 
-      const url = `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(apiKey)}`;
+      const url = `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(PLANTNET_API_KEY)}`;
       const res = await fetch(url, { method: 'POST', body: form });
 
       if (!res.ok) {
@@ -201,23 +199,6 @@ export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, 
           </button>
         ))}
       </div>
-
-      {/* API key box (only shown if not set in the file) */}
-      {!PLANTNET_API_KEY && (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
-            PlantNet API key
-            <span className="text-[var(--text-muted)] font-normal"> — free from my.plantnet.org</span>
-          </label>
-          <input
-            type="text"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value.trim())}
-            className="w-full px-3 py-2 border border-[var(--border)] rounded-lg bg-[var(--forest)] text-[var(--text-primary)] focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            placeholder="Paste your API key here"
-          />
-        </div>
-      )}
 
       <button
         onClick={identify}

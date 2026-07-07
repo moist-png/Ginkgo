@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Site } from '../types';
 import { ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { ConfirmationModal } from './ConfirmationModal';
+import { db } from '../utils/offline';
+import { fromDbSite, toDbSite } from '../utils/mappers';
 
 interface SiteEditorProps {
   site: Site;
@@ -18,23 +20,34 @@ export const SiteEditor: React.FC<SiteEditorProps> = ({
   onBack,
   isNew = false
 }) => {
-  const [editingSite, setEditingSite] = useState<Site>(site);
+  const [editingSite, setEditingSite] = useState<Site>(fromDbSite(site));
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
-  const handleSave = () => {
-    const updatedSite = { ...editingSite, updatedAt: Date.now() };
-    setEditingSite(updatedSite);
-    onSave(updatedSite);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await db.upsert('sites', toDbSite(editingSite));
+      onSave(editingSite);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
     setShowDeleteConfirmation(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (onDelete) {
-      onDelete(site.id);
-    }
+  const handleConfirmDelete = async () => {
+    try {
+      await db.softDelete('sites', site.id);
+    } catch { /* still close the editor */ }
+    if (onDelete) onDelete(site.id);
   };
 
   const updateSite = (field: keyof Site, value: any) => {
@@ -44,16 +57,16 @@ export const SiteEditor: React.FC<SiteEditorProps> = ({
   return (
     <div className="h-full flex flex-col">
       <div className="bg-[var(--surface-raised)] shadow-sm border-b border-[var(--border)] p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
             >
               <ArrowLeft size={20} />
-              Back to Sites
+              <span className="hidden sm:inline">Back to Sites</span>
             </button>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] truncate">
               {isNew ? 'New Site Registry' : 'Edit Site Registry'}
             </h1>
           </div>
@@ -69,13 +82,15 @@ export const SiteEditor: React.FC<SiteEditorProps> = ({
             )}
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+              disabled={saving}
+              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors disabled:opacity-50"
             >
               <Save size={20} />
-              Save Site
+              {saving ? 'Saving…' : 'Save Site'}
             </button>
           </div>
         </div>
+        {saveError && <p className="text-sm text-[#e88] mt-2">{saveError}</p>}
       </div>
 
       <div className="flex-1 overflow-auto p-6">

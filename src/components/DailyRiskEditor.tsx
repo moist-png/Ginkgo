@@ -5,6 +5,8 @@ import { exportSingleRiskAssessment } from '../utils/exportUtils';
 import { getCurrentUser, getUserDisplayName } from '../utils/auth';
 import { ExportModal } from './ExportModal';
 import { ConfirmationModal } from './ConfirmationModal';
+import { db } from '../utils/offline';
+import { fromDbRisk, toDbRisk } from '../utils/mappers';
 
 interface DailyRiskEditorProps {
   risk: DailyRisk;
@@ -21,26 +23,37 @@ export const DailyRiskEditor: React.FC<DailyRiskEditorProps> = ({
   onBack,
   isNew = false
 }) => {
-  const [editingRisk, setEditingRisk] = useState<DailyRisk>(risk);
+  const [editingRisk, setEditingRisk] = useState<DailyRisk>(fromDbRisk(risk));
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [newSignatureName, setNewSignatureName] = useState('');
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
-  const handleSave = () => {
-    const updatedRisk = { ...editingRisk, updatedAt: Date.now() };
-    setEditingRisk(updatedRisk);
-    onSave(updatedRisk);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await db.upsert('daily_risks', toDbRisk(editingRisk));
+      onSave(editingRisk);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
     setShowDeleteConfirmation(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (onDelete) {
-      onDelete(risk.id);
-    }
+  const handleConfirmDelete = async () => {
+    try {
+      await db.softDelete('daily_risks', risk.id);
+    } catch { /* still close */ }
+    if (onDelete) onDelete(risk.id);
   };
 
   const updateRisk = (field: keyof DailyRisk, value: any) => {
@@ -148,20 +161,20 @@ export const DailyRiskEditor: React.FC<DailyRiskEditorProps> = ({
   return (
     <div className="h-full flex flex-col">
       <div className="bg-[var(--surface-raised)] shadow-sm border-b border-[var(--border)] p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
             >
               <ArrowLeft size={20} />
-              Back to Risk Assessments
+              <span className="hidden sm:inline">Back to Risk Assessments</span>
             </button>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] truncate">
               {isNew ? 'New Daily Risk Assessment' : 'Edit Daily Risk Assessment'}
             </h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {!isNew && onDelete && (
               <>
                 <button
@@ -182,13 +195,15 @@ export const DailyRiskEditor: React.FC<DailyRiskEditorProps> = ({
             )}
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+              disabled={saving}
+              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors disabled:opacity-50"
             >
               <Save size={20} />
-              Save Assessment
+              {saving ? 'Saving…' : 'Save Assessment'}
             </button>
           </div>
         </div>
+        {saveError && <p className="text-sm text-[#e88] mt-2">{saveError}</p>}
       </div>
 
       <div className="flex-1 overflow-auto p-6">

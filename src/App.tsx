@@ -56,6 +56,9 @@ function App() {
   const [reports, setReports] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [quotes, setQuotes] = useState<any[]>([]);
+  const [risks, setRisks] = useState<any[]>([]);
+  const [readings, setReadings] = useState<any[]>([]);
 
   // Check for portal URL first
   const portalToken = getPortalToken();
@@ -89,14 +92,20 @@ function App() {
   }, [session]);
 
   const loadCoreData = async () => {
-    const [sitesRes, reportsRes, jobsRes] = await Promise.all([
+    const [sitesRes, reportsRes, jobsRes, quotesRes, risksRes, readingsRes] = await Promise.all([
       supabase.from('sites').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
       supabase.from('reports').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
       supabase.from('jobs').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
+      supabase.from('quotes').select('*').order('updated_at', { ascending: false }),
+      supabase.from('daily_risks').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
+      supabase.from('chlorophyll_readings').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
     ]);
     if (sitesRes.data) setSites(sitesRes.data);
     if (reportsRes.data) setReports(reportsRes.data);
     if (jobsRes.data) setJobs(jobsRes.data);
+    if (quotesRes.data) setQuotes(quotesRes.data);
+    if (risksRes.data) setRisks(risksRes.data);
+    if (readingsRes.data) setReadings(readingsRes.data);
   };
 
   if (loading) return (
@@ -142,11 +151,11 @@ function App() {
 
   // Full-screen editor views
   if (selectedReport) return <ReportEditor report={selectedReport} onSave={r => { setSelectedReport(null); loadCoreData(); }} onBack={() => setSelectedReport(null)} />;
-  if (selectedReading) return <ChlorophyllEditor reading={selectedReading} onSave={() => { setSelectedReading(null); }} onDelete={() => setSelectedReading(null)} onBack={() => setSelectedReading(null)} isNew={isNewItem} allReadings={[]} />;
+  if (selectedReading) return <ChlorophyllEditor reading={selectedReading} onSave={() => { setSelectedReading(null); loadCoreData(); }} onDelete={() => { setSelectedReading(null); loadCoreData(); }} onBack={() => setSelectedReading(null)} isNew={isNewItem} allReadings={readings} />;
   if (editingSite) return <SiteEditor site={editingSite} onSave={s => { setEditingSite(null); setIsNewItem(false); loadCoreData(); if (isNewItem) setSelectedSite(s); }} onDelete={() => { setEditingSite(null); setSelectedSite(null); loadCoreData(); }} onBack={() => { setEditingSite(null); setIsNewItem(false); }} isNew={isNewItem} />;
   if (selectedJob) return <JobEditor job={selectedJob} onSave={() => { setSelectedJob(null); loadCoreData(); }} onDelete={() => { setSelectedJob(null); loadCoreData(); }} onBack={() => setSelectedJob(null)} isNew={isNewItem} />;
-  if (selectedRisk) return <DailyRiskEditor risk={selectedRisk} onSave={() => { setSelectedRisk(null); }} onDelete={() => setSelectedRisk(null)} onBack={() => setSelectedRisk(null)} isNew={isNewItem} />;
-  if (selectedQuote) return <QuoteEditor quote={selectedQuote} onSave={() => { setSelectedQuote(null); }} onDelete={() => setSelectedQuote(null)} onArchive={() => setSelectedQuote(null)} onBack={() => setSelectedQuote(null)} isNew={isNewItem} />;
+  if (selectedRisk) return <DailyRiskEditor risk={selectedRisk} onSave={() => { setSelectedRisk(null); loadCoreData(); }} onDelete={() => { setSelectedRisk(null); loadCoreData(); }} onBack={() => setSelectedRisk(null)} isNew={isNewItem} />;
+  if (selectedQuote) return <QuoteEditor quote={selectedQuote} onSave={() => { setSelectedQuote(null); loadCoreData(); }} onDelete={() => { setSelectedQuote(null); loadCoreData(); }} onArchive={() => { setSelectedQuote(null); loadCoreData(); }} onBack={() => setSelectedQuote(null)} isNew={isNewItem} />;
   if (selectedSite) return (
     <SiteDetailScreen
       site={selectedSite}
@@ -236,7 +245,7 @@ function App() {
         </div>
       </header>
 
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }} className="fade-in">
+      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: 'clamp(16px, 4vw, 32px) clamp(12px, 3.5vw, 24px)' }} className="fade-in">
         {currentView === 'dashboard' && <Dashboard onNavigate={handleViewChange} />}
 
         {currentView === 'team' && <TeamManagement />}
@@ -257,13 +266,13 @@ function App() {
           </div>
         )}
 
-        {currentView === 'chlorophyll' && <ChlorophyllList readings={[]} onSelectReading={setSelectedReading} onCreateReading={() => { setSelectedReading({ id: crypto.randomUUID(), tree_id: crypto.randomUUID(), tree_species: '', tree_location: '', tree_maturity: 'Juvenile', date: new Date().toISOString().split('T')[0], chlorophyll_level: 0, extension_growth: 0, notes: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+        {currentView === 'chlorophyll' && <ChlorophyllList readings={readings} onSelectReading={setSelectedReading} onCreateReading={() => { setSelectedReading({ id: crypto.randomUUID(), tree_id: crypto.randomUUID(), tree_species: '', tree_location: '', tree_maturity: 'Juvenile', date: new Date().toISOString().split('T')[0], chlorophyll_level: 0, extension_growth: 0, notes: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
 
         {currentView === 'jobs' && <JobList jobs={jobs} onSelectJob={setSelectedJob} onCreateJob={() => { setSelectedJob({ id: crypto.randomUUID(), title: '', client_name: '', location: '', date: new Date().toISOString().split('T')[0], start_time: '', end_time: '', time_spent: 0, work_completed: '', work_to_complete: '', notes: '', status: 'scheduled', job_type: 'assessment', hourly_rate: 0, total_cost: 0, assigned_to: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
 
-        {currentView === 'daily-risk' && <DailyRiskList risks={[]} onSelectRisk={setSelectedRisk} onCreateRisk={() => { setSelectedRisk({ id: crypto.randomUUID(), site_address: '', date: new Date().toISOString().split('T')[0], client_name: '', client_mobile: '', first_aid_location: '', nearest_hospital: '', hazards: {workingAtHeights:false,unstableGround:false,powerlines:false,undergroundServices:false,siteWorkers:false,pedestrians:false,traffic:false,noise:false,chainsaws:false,loweringDevices:false,ewp:false,crane:false,deadBranches:false,brokenBranches:false,deadTree:false,barkInclusions:false,treeLean:false,fallenTree:false,wildlife:false}, hazard_controls: [], signatures: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+        {currentView === 'daily-risk' && <DailyRiskList risks={risks} onSelectRisk={setSelectedRisk} onCreateRisk={() => { setSelectedRisk({ id: crypto.randomUUID(), site_address: '', date: new Date().toISOString().split('T')[0], client_name: '', client_mobile: '', first_aid_location: '', nearest_hospital: '', hazards: {workingAtHeights:false,unstableGround:false,powerlines:false,undergroundServices:false,siteWorkers:false,pedestrians:false,traffic:false,noise:false,chainsaws:false,loweringDevices:false,ewp:false,crane:false,deadBranches:false,brokenBranches:false,deadTree:false,barkInclusions:false,treeLean:false,fallenTree:false,wildlife:false}, hazard_controls: [], signatures: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
 
-        {currentView === 'quotes' && <QuoteList quotes={[]} onSelectQuote={setSelectedQuote} onCreateQuote={() => { setSelectedQuote({ id: crypto.randomUUID(), client_name: '', address: '', mobile: '', site_contact: '', scheduled_date: new Date().toISOString().split('T')[0], scheduled_time: '09:00', job_description: [{ id: crypto.randomUUID(), description: '' }], additional_equipment: '', access_parking: '', status: 'new', archived: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} onImportQuotes={() => {}} onUpdateQuoteStatus={() => {}} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+        {currentView === 'quotes' && <QuoteList quotes={quotes} onSelectQuote={setSelectedQuote} onCreateQuote={() => { setSelectedQuote({ id: crypto.randomUUID(), client_name: '', address: '', mobile: '', site_contact: '', scheduled_date: new Date().toISOString().split('T')[0], scheduled_time: '09:00', job_description: [{ id: crypto.randomUUID(), description: '' }], additional_equipment: '', access_parking: '', status: 'new', archived: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} onImportQuotes={() => {}} onUpdateQuoteStatus={() => {}} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
       </main>
 
       <RecentlyDeleted isOpen={showRecentlyDeleted} onClose={() => setShowRecentlyDeleted(false)} onRecover={() => { loadCoreData(); setShowRecentlyDeleted(false); }} />

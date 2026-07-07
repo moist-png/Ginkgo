@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Job, Site } from '../types';
 import { ArrowLeft, Save, Trash2, Clock, Download } from 'lucide-react';
 import { exportSingleJob } from '../utils/exportUtils';
-import { loadSites } from '../utils/storage';
+import { supabase } from '../utils/supabase';
 import { ExportModal } from './ExportModal';
 import { ConfirmationModal } from './ConfirmationModal';
+import { db } from '../utils/offline';
+import { fromDbJob, toDbJob } from '../utils/mappers';
 
 interface JobEditorProps {
   job: Job;
@@ -21,14 +23,22 @@ export const JobEditor: React.FC<JobEditorProps> = ({
   onBack,
   isNew = false
 }) => {
-  const [editingJob, setEditingJob] = useState<Job>(job);
+  const [editingJob, setEditingJob] = useState<Job>(fromDbJob(job));
   const [showExportModal, setShowExportModal] = useState(false);
   const [sites, setSites] = useState<Site[]>([]);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
-    const loadedSites = loadSites();
-    setSites(loadedSites);
+    (async () => {
+      const { data } = await supabase
+        .from('sites')
+        .select('*')
+        .is('deleted_at', null)
+        .order('name', { ascending: true });
+      if (data) setSites(data as any);
+    })();
   }, []);
 
   // Calculate time spent when start/end times change
@@ -45,20 +55,29 @@ export const JobEditor: React.FC<JobEditorProps> = ({
     }
   }, [editingJob.startTime, editingJob.endTime]);
 
-  const handleSave = () => {
-    const updatedJob = { ...editingJob, updatedAt: Date.now() };
-    setEditingJob(updatedJob);
-    onSave(updatedJob);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      await db.upsert('jobs', toDbJob(editingJob));
+      onSave(editingJob);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Could not save. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = () => {
     setShowDeleteConfirmation(true);
   };
 
-  const handleConfirmDelete = () => {
-    if (onDelete) {
-      onDelete(job.id);
-    }
+  const handleConfirmDelete = async () => {
+    try {
+      await db.softDelete('jobs', job.id);
+    } catch { /* still close the editor */ }
+    if (onDelete) onDelete(job.id);
   };
 
   const updateJob = (field: keyof Job, value: any) => {
@@ -79,16 +98,16 @@ export const JobEditor: React.FC<JobEditorProps> = ({
   return (
     <div className="h-full flex flex-col">
       <div className="bg-[var(--surface-raised)] shadow-sm border-b border-[var(--border)] p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
             <button
               onClick={onBack}
-              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              className="flex items-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
             >
               <ArrowLeft size={20} />
-              Back to Jobs
+              <span className="hidden sm:inline">Back to Jobs</span>
             </button>
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            <h1 className="text-lg sm:text-2xl font-bold text-[var(--text-primary)] truncate">
               {isNew ? 'New Job' : 'Edit Job'}
             </h1>
           </div>
@@ -113,13 +132,15 @@ export const JobEditor: React.FC<JobEditorProps> = ({
             )}
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+              disabled={saving}
+              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors disabled:opacity-50"
             >
               <Save size={20} />
-              Save Job
+              {saving ? 'Saving…' : 'Save Job'}
             </button>
           </div>
         </div>
+        {saveError && <p className="text-sm text-[#e88] mt-2">{saveError}</p>}
       </div>
 
       <div className="flex-1 overflow-auto p-6">
