@@ -57,6 +57,9 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
       streamRef.current.getTracks().forEach(t => t.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     window.removeEventListener('deviceorientation', handleOrientation, true);
     setCameraOn(false);
   }, [handleOrientation]);
@@ -85,24 +88,40 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
       setSensorError('Could not start the tilt sensor. Use "Enter angle manually" instead.');
     }
 
-    // 2) Camera
+    // 2) Camera — request the stream now, but don't try to attach it to the
+    // <video> element yet: that element only exists once we're on the
+    // base/top step, which hasn't happened yet. Move to that step first,
+    // then a dedicated effect (below) attaches the stream once the element
+    // is actually mounted.
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {});
-      }
-      setCameraOn(true);
     } catch {
       setCameraError('Camera access was blocked. You can still measure using "Enter angle manually", or allow camera access in your browser settings.');
     }
 
     setStep('base');
   };
+
+  // Attach the camera stream to the <video> element once it exists (i.e.
+  // once we're on the base/top step) and play it. cameraOn only flips to
+  // true once frames are actually flowing, so we never show a false "camera
+  // is on" state with nothing behind it.
+  useEffect(() => {
+    if (step !== 'base' && step !== 'top') return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
+    }
+    video.play().catch(() => {
+      setCameraError('Camera access was blocked. You can still measure using "Enter angle manually", or allow camera access in your browser settings.');
+    });
+  }, [step]);
 
   // --- Capture -------------------------------------------------------------
   const captureCurrent = () => {
@@ -261,6 +280,9 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
         ref={videoRef}
         playsInline
         muted
+        autoPlay
+        onPlaying={() => setCameraOn(true)}
+        onLoadedMetadata={() => setCameraOn(true)}
         className="absolute inset-0 w-full h-full"
         style={{ objectFit: 'cover' }}
       />

@@ -10,12 +10,12 @@ interface SpeciesIdentifierProps {
 
 /**
  * ============================================================================
- *  PASTE YOUR FREE PLANTNET API KEY HERE (between the quotes).
- *  Get one free at:  https://my.plantnet.org  ->  Settings  ->  API key
- *  The free tier allows 500 identifications per day.
+ *  The PlantNet API key now lives on the server (Vercel), not in this file.
+ *  It's set as an environment variable named PLANTNET_API_KEY in the
+ *  Vercel project's Settings -> Environment Variables. This avoids browser
+ *  cross-site request issues and keeps the key out of the public app code.
  * ============================================================================
  */
-const PLANTNET_API_KEY = '2b1006v2pbNe7TWbiTEK21umgO';
 
 type Organ = 'auto' | 'leaf' | 'flower' | 'fruit' | 'bark';
 
@@ -24,6 +24,35 @@ interface Candidate {
   commonName: string;
   score: number; // 0..1
 }
+
+// Downscale the photo in the browser before sending it, so uploads are fast
+// on mobile data and stay comfortably under the server's request-size limit.
+const resizeImageToBase64 = (file: File, maxDim = 1024, quality = 0.82): Promise<{ base64: string; mimeType: string }> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Could not process the photo.')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      const base64 = dataUrl.split(',')[1] || '';
+      resolve({ base64, mimeType: 'image/jpeg' });
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not read the photo.')); };
+    img.src = objectUrl;
+  });
+};
 
 export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, readOnly = false, onUpdate }) => {
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -62,10 +91,6 @@ export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, 
     setCandidates([]);
     setSelected(null);
 
-    if (!PLANTNET_API_KEY) {
-      setError('The tree identifier is not configured yet. Please contact your administrator.');
-      return;
-    }
     if (!imageFile) {
       setError('Take or upload a photo of the tree first.');
       return;
@@ -73,32 +98,21 @@ export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, 
 
     setLoading(true);
     try {
-      const form = new FormData();
-      form.append('images', imageFile);
-      form.append('organs', organ);
+      const { base64, mimeType } = await resizeImageToBase64(imageFile);
 
-      const url = `https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(PLANTNET_API_KEY)}`;
-      const res = await fetch(url, { method: 'POST', body: form });
+      const res = await fetch('/api/identify-species', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64, mimeType, organ }),
+      });
+
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          throw new Error('The API key was rejected. Check it is copied correctly from my.plantnet.org.');
-        }
-        if (res.status === 404) {
-          throw new Error('No plant could be recognised in that photo. Try a clearer photo of a leaf, flower, fruit or bark.');
-        }
-        if (res.status === 429) {
-          throw new Error('Daily free limit reached (500/day). Try again tomorrow.');
-        }
-        throw new Error(`Identification failed (error ${res.status}). Please try again.`);
+        throw new Error(data?.error || `Identification failed (error ${res.status}). Please try again.`);
       }
 
-      const data = await res.json();
-      const results: Candidate[] = (data.results || []).slice(0, 5).map((r: any) => ({
-        scientificName: r?.species?.scientificNameWithoutAuthor || 'Unknown',
-        commonName: (r?.species?.commonNames && r.species.commonNames[0]) || '',
-        score: typeof r?.score === 'number' ? r.score : 0,
-      }));
+      const results: Candidate[] = data.results || [];
 
       if (results.length === 0) {
         setError('No matches found. Try a clearer, closer photo of a single leaf, flower, fruit or the bark.');
@@ -107,7 +121,7 @@ export const SpeciesIdentifier: React.FC<SpeciesIdentifierProps> = ({ treeData, 
         setSelected(0);
       }
     } catch (e) {
-      // A network/CORS failure lands here too.
+      // A network failure (offline, blocked request, etc.) lands here too.
       setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
