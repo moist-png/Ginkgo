@@ -292,8 +292,8 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
                 : 'border-[var(--border)] hover:border-[var(--border-bright)]'
             }`}
           >
-            <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">I know the distance</p>
-            <p className="text-xs text-[var(--text-muted)]">Measured it with a tape, or by pacing it out.</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">I know my distance to the trunk</p>
+            <p className="text-xs text-[var(--text-muted)]">Measured how far you're standing from the trunk with a tape, or by pacing it out.</p>
           </button>
           <button
             onClick={() => setDistanceMode('gps')}
@@ -353,7 +353,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
             <div className="flex items-start gap-2 rounded-lg border border-[rgba(212,160,23,0.3)] bg-[rgba(212,160,23,0.12)] p-3 mb-5">
               <AlertTriangle size={16} className="text-[var(--amber-light)] mt-0.5 shrink-0" />
               <p className="text-xs text-[var(--text-secondary)]">
-                This uses your phone's location to measure the walk-back distance, which is a rough estimate — usually accurate to a few metres. Good for spots you can't measure directly; for the most accurate result, use "I know the distance" with a tape or paced-out measurement instead. You'll be asked to allow Location access.
+                This uses your phone's location to measure the walk-back distance, which is a rough estimate — usually accurate to a few metres. Good for spots you can't measure directly; for the most accurate result, use "I know my distance to the trunk" with a tape or paced-out measurement instead. You'll be asked to allow Location access.
               </p>
             </div>
 
@@ -407,7 +407,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
           )}
           {distanceMode === 'gps' && gpsAccuracyIsPoor && heightRounded !== null && (
             <p className="text-xs text-[var(--amber-light)] mt-3">
-              Your phone's location accuracy was low for this measurement (roughly ±{gpsCombinedAccuracy?.toFixed(0)}m), so treat this height as a rough estimate. Try again in a more open area, or use "I know the distance" for a more precise result.
+              Your phone's location accuracy was low for this measurement (roughly ±{gpsCombinedAccuracy?.toFixed(0)}m), so treat this height as a rough estimate. Try again in a more open area, or use "I know my distance to the trunk" for a more precise result.
             </p>
           )}
         </div>
