@@ -125,7 +125,7 @@ function App() {
     <div style={{ minHeight: '100vh', background: 'var(--forest)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
         <TreePine size={32} color="var(--leaf)" style={{ margin: '0 auto 12px' }} />
-        <p style={{ fontSize: '14px' }}>Loading Ginko...</p>
+        <p style={{ fontSize: '14px' }}>Loading Ginkgo...</p>
       </div>
     </div>
   );
@@ -216,7 +216,7 @@ function App() {
               <div style={{ width: '36px', height: '36px', borderRadius: '8px', background: 'linear-gradient(135deg, var(--canopy), var(--forest-light))', border: '1px solid var(--border-bright)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <TreePine size={20} color="var(--leaf)" />
               </div>
-              <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: '18px', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Ginko</span>
+              <span style={{ fontFamily: 'DM Serif Display, serif', fontSize: '18px', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>Ginkgo</span>
             </div>
 
             <nav className="hidden md:flex" style={{ gap: '4px' }}>
