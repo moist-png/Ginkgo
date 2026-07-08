@@ -268,11 +268,11 @@ export const XeroIntegration: React.FC<XeroIntegrationProps> = ({
               <select
                 value={selectedTenant}
                 onChange={(e) => handleTenantSelect(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                <option value="">Select an organization...</option>
+                <option value="" className="bg-white text-gray-900">Select an organization...</option>
                 {tenants.map(tenant => (
-                  <option key={tenant.tenantId} value={tenant.tenantId}>
+                  <option key={tenant.tenantId} value={tenant.tenantId} className="bg-white text-gray-900">
                     {tenant.tenantName}
                   </option>
                 ))}
