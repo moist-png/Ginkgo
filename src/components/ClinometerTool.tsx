@@ -458,9 +458,9 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
           <>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 mb-5">
               <ol className="space-y-3 text-sm text-[var(--text-secondary)]">
-                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">1</span> Stand about 1m from the trunk. Aim the cross-hair at the base and capture — this marks your spot.</li>
-                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">2</span> Walk normally to wherever you can see the whole tree — face where you're going, not the tree. Any route is fine, even around a building.</li>
-                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">3</span> Aim the cross-hair at the treetop and capture. Your phone measures the distance from GPS, and the height appears automatically.</li>
+                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">1</span> Stand about 1m from the trunk. Aim the cross-hair at the base and capture.</li>
+                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">2</span> Walk to wherever you can see the whole tree.</li>
+                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">3</span> Aim the cross-hair at the treetop and capture.</li>
               </ol>
             </div>
 
