@@ -36,6 +36,17 @@ interface GeoPoint {
 // asks the user to stand about this far from the trunk for the base shot.
 const GPS_START_DISTANCE = 1;
 
+// Assumed average adult stride length for the background step counter.
+// Not user-editable — it's only ever used as a rough cross-check against
+// the GPS reading, never as the primary distance source.
+const STEP_LENGTH_M = 0.75;
+
+// How much we trust the step-count distance relative to its own value —
+// an uncalibrated stride-length guess is typically accurate to somewhere
+// around ±25% for a casual walk. This is a rough, standard assumption for
+// an unconfigured pedometer, not a measured figure.
+const STEP_RELATIVE_UNCERTAINTY = 0.25;
+
 // Straight-line distance between two GPS points, in metres (haversine).
 const haversineMeters = (a: GeoPoint, b: GeoPoint): number => {
   const R = 6371000;
@@ -77,6 +88,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
   const [topLocation, setTopLocation] = useState<GeoPoint | null>(null);
   const [locating, setLocating] = useState(false);
   const [gpsError, setGpsError] = useState('');
+  const [stepsWalked, setStepsWalked] = useState<number | null>(null);
 
   const [cameraError, setCameraError] = useState('');
   const [sensorError, setSensorError] = useState('');
@@ -87,12 +99,56 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
   const streamRef = useRef<MediaStream | null>(null);
   const liveAngleRef = useRef<number | null>(null);
 
+  // Background step counter (see handleMotion below) — only active in gps
+  // mode, only while walking from the base shot to the top shot.
+  const stepBaselineRef = useRef<number | null>(null);
+  const stepPrimedRef = useRef(false);
+  const lastStepAtRef = useRef(0);
+  const stepCountRef = useRef(0);
+  const countingStepsRef = useRef(false);
+
   // --- Device tilt sensor --------------------------------------------------
   const handleOrientation = useCallback((e: DeviceOrientationEvent) => {
     if (e.beta === null || e.beta === undefined) return;
     const elevation = Math.round((e.beta - 90) * 10) / 10; // 0 = level with horizon
     liveAngleRef.current = elevation;
     setLiveAngle(elevation);
+  }, []);
+
+  // --- Background step counter ----------------------------------------------
+  // A lightweight pedometer using the accelerometer: each footstep produces
+  // a small bump-and-drop in total acceleration, which shows up as a swing
+  // above and then below a slow-moving baseline. This is a rough,
+  // uncalibrated estimate — not survey-grade — used purely as a secondary
+  // signal to help steady the GPS distance reading when GPS accuracy is
+  // poor (e.g. under tree canopy). It never overrides a good GPS reading.
+  const handleMotion = useCallback((e: DeviceMotionEvent) => {
+    const acc = e.accelerationIncludingGravity;
+    if (!acc || acc.x === null || acc.y === null || acc.z === null) return;
+    const magnitude = Math.sqrt((acc.x ?? 0) ** 2 + (acc.y ?? 0) ** 2 + (acc.z ?? 0) ** 2);
+
+    if (stepBaselineRef.current === null) {
+      stepBaselineRef.current = magnitude;
+      return;
+    }
+    // Slow-moving baseline (roughly gravity + steady posture), updated
+    // continuously so it drifts with how the phone is being held.
+    stepBaselineRef.current = stepBaselineRef.current * 0.9 + magnitude * 0.1;
+
+    if (!countingStepsRef.current) return;
+
+    const highPass = magnitude - stepBaselineRef.current;
+    const now = Date.now();
+    const THRESHOLD = 1.1; // m/s^2, above ambient hand-jitter, below a full stride bump
+    const REFRACTORY_MS = 300; // don't double-count within one stride's time
+
+    if (!stepPrimedRef.current && highPass > THRESHOLD) {
+      stepPrimedRef.current = true;
+    } else if (stepPrimedRef.current && highPass < -THRESHOLD && now - lastStepAtRef.current > REFRACTORY_MS) {
+      stepPrimedRef.current = false;
+      lastStepAtRef.current = now;
+      stepCountRef.current += 1;
+    }
   }, []);
 
   // --- Start / stop --------------------------------------------------------
@@ -105,8 +161,10 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
       videoRef.current.srcObject = null;
     }
     window.removeEventListener('deviceorientation', handleOrientation, true);
+    window.removeEventListener('devicemotion', handleMotion, true);
+    countingStepsRef.current = false;
     setCameraOn(false);
-  }, [handleOrientation]);
+  }, [handleOrientation, handleMotion]);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
@@ -118,7 +176,14 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
     setTopAngle(null);
     setBaseLocation(null);
     setTopLocation(null);
+    setStepsWalked(null);
     setSaved(false);
+
+    stepBaselineRef.current = null;
+    stepPrimedRef.current = false;
+    lastStepAtRef.current = 0;
+    stepCountRef.current = 0;
+    countingStepsRef.current = false;
 
     // 1) Motion permission (iOS 13+ needs an explicit prompt on a tap)
     try {
@@ -136,6 +201,22 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
       }
     } catch {
       setSensorError('Could not start the tilt sensor. Use "Enter angle manually" instead.');
+    }
+
+    // 1b) Accelerometer permission — purely a background step-count signal
+    // used to help steady GPS distance readings. Entirely optional: if
+    // it's denied or unsupported, the tool just falls back to GPS alone,
+    // no different from how it already behaves today.
+    try {
+      const anyMotion = DeviceMotionEvent as any;
+      if (typeof anyMotion?.requestPermission === 'function') {
+        await anyMotion.requestPermission().catch(() => {});
+      }
+      if (typeof DeviceMotionEvent !== 'undefined') {
+        window.addEventListener('devicemotion', handleMotion, true);
+      }
+    } catch {
+      // Silently unavailable — GPS-only distance is used instead.
     }
 
     // 2) Camera — request the stream now, but don't try to attach it to the
@@ -191,8 +272,14 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
         if (step === 'base') {
           setBaseAngle(a);
           setBaseLocation(point);
+          // Start counting steps fresh for the walk from here to the top shot.
+          stepCountRef.current = 0;
+          stepPrimedRef.current = false;
+          countingStepsRef.current = true;
           setStep('top');
         } else if (step === 'top') {
+          countingStepsRef.current = false;
+          setStepsWalked(stepCountRef.current);
           setTopAngle(a);
           setTopLocation(point);
           setStep('result');
@@ -214,8 +301,12 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
     setTopAngle(null);
     setBaseLocation(null);
     setTopLocation(null);
+    setStepsWalked(null);
     setGpsError('');
     setSaved(false);
+    stepCountRef.current = 0;
+    stepPrimedRef.current = false;
+    countingStepsRef.current = false;
     setStep('base');
   };
 
@@ -231,7 +322,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
   // direct walk-back.
   const gpsDistanceToTop = baseLocation && topLocation ? haversineMeters(baseLocation, topLocation) : null;
 
-  // Combined GPS uncertainty — a rough sense of how much the walked distance
+  // Combined GPS uncertainty — a rough sense of how much the GPS distance
   // could be off by, since each fix has its own accuracy radius.
   const gpsCombinedAccuracy = baseLocation && topLocation
     ? Math.sqrt(baseLocation.accuracy ** 2 + topLocation.accuracy ** 2)
@@ -240,18 +331,37 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
     ? (gpsCombinedAccuracy > 10 || gpsCombinedAccuracy > gpsDistanceToTop * 0.4)
     : false;
 
+  // Background step-count distance, as a cross-check on the GPS reading.
+  const stepDistanceEstimate = stepsWalked !== null && stepsWalked > 0 ? stepsWalked * STEP_LENGTH_M : null;
+
+  // Blend GPS and step-count distances by how much each is trusted (simple
+  // inverse-variance weighting): GPS's own reported accuracy becomes its
+  // uncertainty, and the step estimate is assumed uncertain by a fixed
+  // percentage of its own value. When GPS is strong, it dominates the blend
+  // almost completely; when GPS is weak, the step count anchors the number
+  // and pulls it back toward something steadier — without ever silently
+  // overriding a good GPS reading.
+  let finalGpsDistance = gpsDistanceToTop;
+  let stepsContributed = false;
+  if (gpsDistanceToTop !== null && gpsCombinedAccuracy !== null && gpsCombinedAccuracy > 0 && stepDistanceEstimate !== null) {
+    const gpsWeight = 1 / (gpsCombinedAccuracy ** 2);
+    const stepWeight = 1 / ((stepDistanceEstimate * STEP_RELATIVE_UNCERTAINTY) ** 2);
+    finalGpsDistance = (gpsDistanceToTop * gpsWeight + stepDistanceEstimate * stepWeight) / (gpsWeight + stepWeight);
+    stepsContributed = Math.abs(finalGpsDistance - gpsDistanceToTop) > 0.3;
+  }
+
   let height: number | null = null;
   if (distanceMode === 'known') {
     if (distance > 0 && topAngle !== null && baseAngle !== null) {
       height = distance * (Math.tan(toRad(topAngle)) - Math.tan(toRad(baseAngle)));
     }
   } else if (distanceMode === 'gps') {
-    if (gpsDistanceToTop !== null && topAngle !== null && baseAngle !== null) {
+    if (finalGpsDistance !== null && topAngle !== null && baseAngle !== null) {
       // Base shot (taken ~1m from the trunk) establishes eye height; top
-      // shot (taken from gpsDistanceToTop away, wherever that ends up)
+      // shot (taken from finalGpsDistance away, wherever that ends up)
       // reaches the treetop. This collapses to the standard two-angle
       // formula when the two shots are taken from the same spot.
-      height = gpsDistanceToTop * Math.tan(toRad(topAngle)) - GPS_START_DISTANCE * Math.tan(toRad(baseAngle));
+      height = finalGpsDistance * Math.tan(toRad(topAngle)) - GPS_START_DISTANCE * Math.tan(toRad(baseAngle));
     }
   }
   const heightRounded = height !== null && isFinite(height) && height > 0 ? Math.round(height * 10) / 10 : null;
@@ -265,7 +375,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
   // --- Instruction text per step ------------------------------------------
   const banner = distanceMode === 'gps' ? {
     base: { icon: ArrowDown, title: 'Stand ~1m from the trunk', body: 'Aim the cross-hair at the base of the trunk, hold steady, then tap Capture. Your starting spot gets marked automatically.' },
-    top:  { icon: ArrowUp,   title: 'Move back, then aim at the TOP', body: 'Head to wherever you can see the whole tree — any route is fine. Aim the cross-hair at the very top and tap Capture.' },
+    top:  { icon: ArrowUp,   title: 'Move back, then aim at the TOP', body: "No need to walk backwards — face where you're going and watch your footing. Once you can see the whole tree, turn and aim the cross-hair at the top, then tap Capture." },
   } as const : {
     base: { icon: ArrowDown, title: 'Aim at the BASE of the trunk', body: 'Line up the cross-hair with the bottom of the tree, hold steady, then tap Capture.' },
     top:  { icon: ArrowUp,   title: 'Aim at the TOP of the tree',   body: 'Line up the cross-hair with the very highest point, hold steady, then tap Capture.' },
@@ -349,15 +459,22 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 mb-5">
               <ol className="space-y-3 text-sm text-[var(--text-secondary)]">
                 <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">1</span> Stand about 1m from the trunk. Aim the cross-hair at the base and capture — this marks your spot.</li>
-                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">2</span> Move to wherever you can see the whole tree — any route is fine, even around a building.</li>
+                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">2</span> Walk normally to wherever you can see the whole tree — face where you're going, not the tree. Any route is fine, even around a building.</li>
                 <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">3</span> Aim the cross-hair at the treetop and capture. Your phone measures the distance from GPS, and the height appears automatically.</li>
               </ol>
+            </div>
+
+            <div className="flex items-start gap-2 rounded-lg border border-[rgba(212,160,23,0.3)] bg-[rgba(212,160,23,0.12)] p-3 mb-3">
+              <AlertTriangle size={16} className="text-[var(--amber-light)] mt-0.5 shrink-0" />
+              <p className="text-xs text-[var(--text-secondary)]">
+                <strong>You don't need to walk backwards or keep the tree in view while moving.</strong> Walking backwards without looking where you're going is a trip and collision hazard. Face your direction of travel, watch your footing, and only turn back to the tree once you've stopped to take the top shot.
+              </p>
             </div>
 
             <div className="flex items-start gap-2 rounded-lg border border-[rgba(212,160,23,0.3)] bg-[rgba(212,160,23,0.12)] p-3 mb-5">
               <AlertTriangle size={16} className="text-[var(--amber-light)] mt-0.5 shrink-0" />
               <p className="text-xs text-[var(--text-secondary)]">
-                This uses your phone's location to measure the walk-back distance, which is a rough estimate — usually accurate to a few metres. Good for spots you can't measure directly; for the most accurate result, use "I know my distance to the trunk" with a tape or paced-out measurement instead. You'll be asked to allow Location access.
+                This uses your phone's location (plus your step count in the background, as a cross-check) to measure the distance, which is a rough estimate — usually accurate to a few metres. Good for spots you can't measure directly; for the most accurate result, use "I know my distance to the trunk" with a tape or paced-out measurement instead. You'll be asked to allow Location access, and Motion access if your device supports it.
               </p>
             </div>
 
@@ -399,11 +516,16 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
             {distanceMode === 'known' ? (
               <span>Distance: <strong className="text-[var(--text-secondary)]">{distance} m</strong></span>
             ) : (
-              <span>Distance (GPS): <strong className="text-[var(--text-secondary)]">{gpsDistanceToTop !== null ? `~${gpsDistanceToTop.toFixed(1)} m` : '—'}</strong></span>
+              <span>Distance: <strong className="text-[var(--text-secondary)]">{finalGpsDistance !== null ? `~${finalGpsDistance.toFixed(1)} m` : '—'}</strong></span>
             )}
             <span>Base: <strong className="text-[var(--text-secondary)]">{baseAngle?.toFixed(1)}°</strong></span>
             <span>Top: <strong className="text-[var(--text-secondary)]">{topAngle?.toFixed(1)}°</strong></span>
           </div>
+          {distanceMode === 'gps' && stepsWalked !== null && stepsWalked > 0 && (
+            <p className="text-xs text-[var(--text-muted)] mt-3">
+              Background step count: ~{stepsWalked} steps (~{stepDistanceEstimate?.toFixed(1)} m){stepsContributed ? ' — used to help steady the GPS reading.' : ', roughly matching the GPS reading.'}
+            </p>
+          )}
           {heightRounded === null && (
             <p className="text-xs text-[var(--amber-light)] mt-3">
               That didn't produce a valid height. Make sure the top angle is higher than the base angle, then try again.
@@ -411,7 +533,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
           )}
           {distanceMode === 'gps' && gpsAccuracyIsPoor && heightRounded !== null && (
             <p className="text-xs text-[var(--amber-light)] mt-3">
-              Your phone's location accuracy was low for this measurement (roughly ±{gpsCombinedAccuracy?.toFixed(0)}m), so treat this height as a rough estimate. Try again in a more open area, or use "I know my distance to the trunk" for a more precise result.
+              Your phone's location accuracy was low for this measurement (roughly ±{gpsCombinedAccuracy?.toFixed(0)}m){stepsContributed ? ', though the background step count helped steady the estimate' : ''}. Treat this height as a rough estimate{stepsContributed ? '' : ' — try again in a more open area, or use "I know my distance to the trunk" for a more precise result'}.
             </p>
           )}
         </div>
