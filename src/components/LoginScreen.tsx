@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { signIn, signUp } from '../utils/auth';
+import { signIn, signUp, signInAsGuest } from '../utils/auth';
 import { TreePine, Mail, Lock, User as UserIcon, Eye, EyeOff, AlertCircle, Key } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -16,6 +16,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const [guestLoading, setGuestLoading] = useState(false);
+
+  // TEMPORARY — TESTING ONLY. See matching comment in utils/auth.ts.
+  const handleGuestLogin = async () => {
+    setError(null);
+    setGuestLoading(true);
+    try {
+      await signInAsGuest();
+      onLogin();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not start guest session');
+    } finally {
+      setGuestLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +133,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               {isLoading ? 'Loading...' : isLogin ? 'Sign In' : 'Create Account'}
             </button>
           </form>
+
+          {/* TEMPORARY — TESTING ONLY. Delete this block (and handleGuestLogin
+              above) once real clients start using the app. */}
+          <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px dashed var(--border)' }}>
+            <button
+              type="button"
+              onClick={handleGuestLogin}
+              disabled={guestLoading || isLoading}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: guestLoading || isLoading ? 'not-allowed' : 'pointer',
+                background: 'transparent',
+                border: '1px dashed var(--border-bright)',
+                color: 'var(--text-muted)',
+              }}
+            >
+              {guestLoading ? 'Starting guest session...' : 'Continue as Guest (testing only)'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

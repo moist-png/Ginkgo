@@ -26,6 +26,20 @@ export const signUpWithInvite = async (email: string, password: string, name: st
   return data;
 };
 
+// ---------------------------------------------------------------------------
+// TEMPORARY — TESTING ONLY. Remove this function and the "Continue as Guest"
+// button in LoginScreen.tsx before real clients start using the app.
+// Uses Supabase's built-in anonymous sign-in, which still gets a normal
+// "authenticated" session (RLS treats it the same as any signed-in login).
+// Requires "Allow anonymous sign-ins" to be turned on in Supabase:
+// Dashboard -> Authentication -> Sign In / Providers -> Anonymous.
+// ---------------------------------------------------------------------------
+export const signInAsGuest = async () => {
+  const { data, error } = await supabase.auth.signInAnonymously();
+  if (error) throw error;
+  return data;
+};
+
 export const signOut = async () => {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
