@@ -222,18 +222,22 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
   // --- Height calculation --------------------------------------------------
   const toRad = (deg: number) => (deg * Math.PI) / 180;
 
-  // Only used in gps mode: how far the user walked between the two shots,
-  // and the resulting full distance to the trunk from the second (top) spot.
-  const walkedDistance = baseLocation && topLocation ? haversineMeters(baseLocation, topLocation) : null;
-  const gpsDistanceToTop = walkedDistance !== null ? GPS_START_DISTANCE + walkedDistance : null;
+  // Only used in gps mode. The base shot is taken from ~1m off the trunk, so
+  // that point is essentially standing in for the tree's own location. That
+  // means the straight-line GPS distance from the base point to the top
+  // point is a good estimate of the true distance to the trunk from wherever
+  // the top shot ends up — regardless of the route walked to get there (in
+  // a straight line, around a building, whatever). No need to assume a
+  // direct walk-back.
+  const gpsDistanceToTop = baseLocation && topLocation ? haversineMeters(baseLocation, topLocation) : null;
 
   // Combined GPS uncertainty — a rough sense of how much the walked distance
   // could be off by, since each fix has its own accuracy radius.
   const gpsCombinedAccuracy = baseLocation && topLocation
     ? Math.sqrt(baseLocation.accuracy ** 2 + topLocation.accuracy ** 2)
     : null;
-  const gpsAccuracyIsPoor = gpsCombinedAccuracy !== null && walkedDistance !== null
-    ? (gpsCombinedAccuracy > 10 || gpsCombinedAccuracy > walkedDistance * 0.4)
+  const gpsAccuracyIsPoor = gpsCombinedAccuracy !== null && gpsDistanceToTop !== null
+    ? (gpsCombinedAccuracy > 10 || gpsCombinedAccuracy > gpsDistanceToTop * 0.4)
     : false;
 
   let height: number | null = null;
@@ -243,10 +247,10 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
     }
   } else if (distanceMode === 'gps') {
     if (gpsDistanceToTop !== null && topAngle !== null && baseAngle !== null) {
-      // Base shot taken from GPS_START_DISTANCE away establishes eye height;
-      // top shot taken from further back (gpsDistanceToTop away) reaches the
-      // treetop. This collapses to the standard two-angle formula when the
-      // user doesn't move at all (gpsDistanceToTop === GPS_START_DISTANCE).
+      // Base shot (taken ~1m from the trunk) establishes eye height; top
+      // shot (taken from gpsDistanceToTop away, wherever that ends up)
+      // reaches the treetop. This collapses to the standard two-angle
+      // formula when the two shots are taken from the same spot.
       height = gpsDistanceToTop * Math.tan(toRad(topAngle)) - GPS_START_DISTANCE * Math.tan(toRad(baseAngle));
     }
   }
@@ -261,7 +265,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
   // --- Instruction text per step ------------------------------------------
   const banner = distanceMode === 'gps' ? {
     base: { icon: ArrowDown, title: 'Stand ~1m from the trunk', body: 'Aim the cross-hair at the base of the trunk, hold steady, then tap Capture. Your starting spot gets marked automatically.' },
-    top:  { icon: ArrowUp,   title: 'Walk back, then aim at the TOP', body: 'Keep facing the tree and walk backward until you can see the whole thing. Aim the cross-hair at the very top and tap Capture.' },
+    top:  { icon: ArrowUp,   title: 'Move back, then aim at the TOP', body: 'Head to wherever you can see the whole tree — any route is fine. Aim the cross-hair at the very top and tap Capture.' },
   } as const : {
     base: { icon: ArrowDown, title: 'Aim at the BASE of the trunk', body: 'Line up the cross-hair with the bottom of the tree, hold steady, then tap Capture.' },
     top:  { icon: ArrowUp,   title: 'Aim at the TOP of the tree',   body: 'Line up the cross-hair with the very highest point, hold steady, then tap Capture.' },
@@ -305,7 +309,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
             }`}
           >
             <p className="text-sm font-semibold text-[var(--text-primary)] mb-1">Walk it out with GPS</p>
-            <p className="text-xs text-[var(--text-muted)]">No measuring needed — your phone works out the distance as you walk back.</p>
+            <p className="text-xs text-[var(--text-muted)]">No measuring needed — your phone works out the distance from GPS, wherever you end up.</p>
           </button>
         </div>
 
@@ -345,8 +349,8 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
             <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-5 mb-5">
               <ol className="space-y-3 text-sm text-[var(--text-secondary)]">
                 <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">1</span> Stand about 1m from the trunk. Aim the cross-hair at the base and capture — this marks your spot.</li>
-                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">2</span> Walk straight backward, facing the tree, until you can see the whole thing.</li>
-                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">3</span> Aim the cross-hair at the treetop and capture. Your phone works out how far you walked, and the height appears automatically.</li>
+                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">2</span> Move to wherever you can see the whole tree — any route is fine, even around a building.</li>
+                <li className="flex gap-3"><span className="shrink-0 w-6 h-6 rounded-full bg-[rgba(90,143,90,0.2)] text-[var(--leaf)] flex items-center justify-center font-semibold">3</span> Aim the cross-hair at the treetop and capture. Your phone measures the distance from GPS, and the height appears automatically.</li>
               </ol>
             </div>
 
@@ -395,7 +399,7 @@ export const ClinometerTool: React.FC<ClinometerToolProps> = ({ treeData, readOn
             {distanceMode === 'known' ? (
               <span>Distance: <strong className="text-[var(--text-secondary)]">{distance} m</strong></span>
             ) : (
-              <span>Walked back: <strong className="text-[var(--text-secondary)]">{walkedDistance !== null ? `~${walkedDistance.toFixed(1)} m` : '—'}</strong></span>
+              <span>Distance (GPS): <strong className="text-[var(--text-secondary)]">{gpsDistanceToTop !== null ? `~${gpsDistanceToTop.toFixed(1)} m` : '—'}</strong></span>
             )}
             <span>Base: <strong className="text-[var(--text-secondary)]">{baseAngle?.toFixed(1)}°</strong></span>
             <span>Top: <strong className="text-[var(--text-secondary)]">{topAngle?.toFixed(1)}°</strong></span>
