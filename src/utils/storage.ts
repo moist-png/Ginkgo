@@ -146,35 +146,21 @@ export const formatTime = (minutes: number): string => {
   }
 };
 
-export const createEmptyReport = (siteId?: string): ArboristReport => ({
+export const createEmptyReport = (siteId: string = ''): ArboristReport => ({
   id: generateReportId(),
+  siteId,
   title: '',
   clientName: '',
   address: '',
   inspector: '',
   date: new Date().toISOString().split('T')[0],
-  treeData: {
-    treeNumber: '',
-    species: '',
-    commonName: '',
-    dbh: 0,
-    height: 0,
-    canopySpreadNS: 0,
-    canopySpreadEW: 0,
-    treeHealth: 'Good',
-    extensionGrowth: 0,
-    structure: 'Good',
-    woundWoodDevelopment: 'Good',
-    canopyCover: 0,
-    location: ''
-  },
+  trees: [],
   photos: [],
   notes: [],
   recommendations: [],
   status: 'draft',
   createdAt: Date.now(),
   updatedAt: Date.now(),
-  siteId
 });
 
 export const createEmptyChlorophyllReading = (): ChlorophyllReading => ({

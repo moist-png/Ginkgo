@@ -1,28 +1,31 @@
 import React, { useState } from 'react';
-import { ArboristReport, Site, Job } from '../types';
+import { Tree, ArboristReport, Site, Job } from '../types';
 import { formatDate } from '../utils/storage';
-import { Plus, Search, TreePine, Calendar, ArrowLeft, Building2, MapPin, Upload, Download, Briefcase } from 'lucide-react';
+import { Plus, Search, TreePine, Calendar, ArrowLeft, Building2, MapPin, Upload, Download, Briefcase, FileText } from 'lucide-react';
 import { ImportModal } from './ImportModal';
 import { WorkDoneList } from './WorkDoneList';
 import { exportTreesCSV, exportSiteReport } from '../utils/exportUtils';
 import { canUserEdit } from '../utils/auth';
 import { ExportModal } from './ExportModal';
 
-type SiteDetailSubView = 'trees' | 'work-done';
+type SiteDetailSubView = 'trees' | 'reports' | 'work-done';
 
 interface SiteDetailScreenProps {
   site: Site;
-  trees: ArboristReport[];
+  trees: Tree[];
+  reports: ArboristReport[];
   jobs: Job[];
   sitesSubView: SiteDetailSubView;
   onSitesSubViewChange: (subView: SiteDetailSubView) => void;
-  onSelectTree: (tree: ArboristReport) => void;
+  onSelectTree: (tree: Tree) => void;
+  onSelectReport: (report: ArboristReport) => void;
   onSelectJob: (job: Job) => void;
   onCreateTree: () => void;
+  onCreateReport: () => void;
   onCreateJob: () => void;
   onBackToSites: () => void;
   onEditSite: () => void;
-  onImportTrees: (trees: ArboristReport[]) => void;
+  onImportTrees: (trees: Tree[]) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
 }
@@ -30,12 +33,15 @@ interface SiteDetailScreenProps {
 export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
   site,
   trees,
+  reports,
   jobs,
   sitesSubView,
   onSitesSubViewChange,
   onSelectTree,
+  onSelectReport,
   onSelectJob,
   onCreateTree,
+  onCreateReport,
   onCreateJob,
   onBackToSites,
   onEditSite,
@@ -58,11 +64,15 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
   };
 
   const filteredTrees = trees.filter(tree =>
-    tree.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tree.treeData.treeNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tree.treeData.species.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tree.treeData.commonName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    tree.treeData.location.toLowerCase().includes(searchQuery.toLowerCase())
+    tree.treeNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tree.species.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tree.commonName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tree.location.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredReports = reports.filter(report =>
+    report.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    report.clientName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const siteJobs = jobs.filter(job => job.siteId === site.id);
@@ -93,6 +103,7 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
             </div>
             <div className="flex gap-4">
               <span>{trees.length} {trees.length === 1 ? 'tree' : 'trees'}</span>
+              <span>{reports.length} {reports.length === 1 ? 'report' : 'reports'}</span>
               <span>{siteJobs.length} {siteJobs.length === 1 ? 'job' : 'jobs'}</span>
             </div>
           </div>
@@ -137,6 +148,15 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
                 </button>
               </>
             )}
+            {canEdit && sitesSubView === 'reports' && (
+              <button
+                onClick={onCreateReport}
+                className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+              >
+                <Plus size={20} />
+                New Report
+              </button>
+            )}
             {canEdit && sitesSubView === 'work-done' && (
               <button
                 onClick={onCreateJob}
@@ -168,6 +188,19 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
               </div>
             </button>
             <button
+              onClick={() => onSitesSubViewChange('reports')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                sitesSubView === 'reports'
+                  ? 'border-[var(--moss)] text-[var(--leaf)]'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border)]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <FileText size={16} />
+                Reports ({reports.length})
+              </div>
+            </button>
+            <button
               onClick={() => onSitesSubViewChange('work-done')}
               className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
                 sitesSubView === 'work-done'
@@ -184,7 +217,7 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
         </div>
 
         {/* Content based on sub-view */}
-        {sitesSubView === 'trees' ? (
+        {sitesSubView === 'trees' && (
           <>
             <div className="relative mb-6">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" size={20} />
@@ -238,30 +271,30 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          {tree.treeData.treeNumber && (
+                          {tree.treeNumber && (
                             <span className="bg-[rgba(138,111,76,0.15)] text-[var(--accent)] px-2 py-1 rounded-full text-sm font-medium">
-                              #{tree.treeData.treeNumber}
+                              #{tree.treeNumber}
                             </span>
                           )}
                           <h3 className="text-xl font-semibold text-[var(--text-primary)]">
-                            {tree.title || tree.treeData.species || 'Untitled Tree'}
+                            {tree.species || tree.commonName || 'Untitled Tree'}
                           </h3>
                         </div>
                         <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
-                          {tree.treeData.species && (
+                          {tree.species && (
                             <div className="font-medium text-[var(--text-primary)]">
-                              {tree.treeData.species}
+                              {tree.species}
                             </div>
                           )}
-                          {tree.treeData.commonName && (
+                          {tree.commonName && (
                             <div>
-                              {tree.treeData.commonName}
+                              {tree.commonName}
                             </div>
                           )}
-                          {tree.treeData.location && (
+                          {tree.location && (
                             <div className="flex items-center gap-1">
                               <MapPin size={16} />
-                              {tree.treeData.location}
+                              {tree.location}
                             </div>
                           )}
                           <div className="flex items-center gap-1">
@@ -270,28 +303,79 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
                           </div>
                         </div>
                       </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(tree.status)}`}>
-                        {tree.status}
-                      </span>
                     </div>
                     
                     <div className="flex items-center gap-4 text-sm text-[var(--text-muted)]">
-                      <span>{tree.photos.length} photos</span>
-                      <span>{tree.notes.length} notes</span>
-                      {tree.treeData.dbh > 0 && (
-                        <span>DBH: {tree.treeData.dbh}cm</span>
+                      {tree.dbh > 0 && (
+                        <span>DBH: {tree.dbh}cm</span>
                       )}
-                      {tree.treeData.height > 0 && (
-                        <span>Height: {tree.treeData.height}m</span>
+                      {tree.height > 0 && (
+                        <span>Height: {tree.height}m</span>
                       )}
-                      <span className="font-medium">Health: {tree.treeData.treeHealth}</span>
+                      <span className="font-medium">Health: {tree.treeHealth}</span>
                     </div>
                   </div>
                 ))
               )}
             </div>
           </>
-        ) : (
+        )}
+
+        {sitesSubView === 'reports' && (
+          <>
+            <div className="relative mb-6">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[var(--text-muted)]" size={20} />
+              <input
+                type="text"
+                placeholder="Search reports for this site..."
+                value={searchQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+              />
+            </div>
+
+            <div className="grid gap-4">
+              {filteredReports.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="mx-auto h-12 w-12 text-[var(--text-muted)] mb-4" />
+                  <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
+                    {searchQuery ? 'No reports found' : 'No reports for this site yet'}
+                  </h3>
+                  {!searchQuery && canEdit && (
+                    <button
+                      onClick={onCreateReport}
+                      className="bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors mt-2"
+                    >
+                      Create First Report
+                    </button>
+                  )}
+                </div>
+              ) : (
+                filteredReports.map((report) => (
+                  <div
+                    key={report.id}
+                    onClick={() => onSelectReport(report)}
+                    className="bg-[var(--surface-raised)] rounded-lg shadow-md border border-[var(--border)] p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-xl font-semibold text-[var(--text-primary)] mb-2">{report.title || 'Untitled Report'}</h3>
+                        <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
+                          <span>{report.clientName || 'No client'}</span>
+                          <span className="flex items-center gap-1"><Calendar size={16} />{formatDate(report.updatedAt)}</span>
+                          <span className="flex items-center gap-1"><TreePine size={16} />{report.trees.length} {report.trees.length === 1 ? 'tree' : 'trees'}</span>
+                        </div>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(report.status)}`}>{report.status}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
+        )}
+
+        {sitesSubView === 'work-done' && (
           <WorkDoneList
             jobs={jobs}
             site={site}

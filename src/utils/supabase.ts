@@ -16,6 +16,8 @@ export type Database = {
       profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile> };
       sites: { Row: Site; Insert: Partial<Site>; Update: Partial<Site> };
       reports: { Row: Report; Insert: Partial<Report>; Update: Partial<Report> };
+      trees: { Row: Tree; Insert: Partial<Tree>; Update: Partial<Tree> };
+      report_trees: { Row: ReportTree; Insert: Partial<ReportTree>; Update: Partial<ReportTree> };
       jobs: { Row: Job; Insert: Partial<Job>; Update: Partial<Job> };
       daily_risks: { Row: DailyRisk; Insert: Partial<DailyRisk>; Update: Partial<DailyRisk> };
       quotes: { Row: Quote; Insert: Partial<Quote>; Update: Partial<Quote> };
@@ -106,18 +108,47 @@ export interface Site {
 
 export interface Report {
   id: string;
-  site_id?: string;
+  site_id: string;
   title: string;
   client_name: string;
   address: string;
   inspector: string;
   date: string;
-  tree_data: any;
   recommendations: string[];
   status: 'draft' | 'in-progress' | 'completed';
   created_at: string;
   updated_at: string;
   deleted_at?: string;
+}
+
+export interface Tree {
+  id: string;
+  site_id: string;
+  tree_number: string;
+  species: string;
+  common_name: string;
+  dbh: number;
+  height: number;
+  canopy_spread_ns: number;
+  canopy_spread_ew: number;
+  tree_health: string;
+  extension_growth: number;
+  structure: string;
+  wound_wood_development: string;
+  canopy_cover: number;
+  location: string;
+  lat?: number;
+  lng?: number;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string;
+}
+
+export interface ReportTree {
+  id: string;
+  report_id: string;
+  tree_id: string;
+  created_at: string;
 }
 
 export interface Photo {

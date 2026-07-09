@@ -1,4 +1,4 @@
-import { ArboristReport, Site, ChlorophyllReading, Job, DailyRisk, Quote } from '../types';
+import { ArboristReport, Site, Tree, ChlorophyllReading, Job, DailyRisk, Quote } from '../types';
 
 // Generic CSV export utility
 export const exportToCSV = (data: any[], filename: string, headers: string[]) => {
@@ -50,7 +50,7 @@ export const exportSitesCSV = (sites: Site[]) => {
   exportToCSV(data, 'sites-export', headers);
 };
 
-export const exportSiteReport = (site: Site, trees: ArboristReport[]) => {
+export const exportSiteReport = (site: Site, trees: Tree[]) => {
   const content = `
 SITE REGISTRY REPORT
 ===================
@@ -60,8 +60,6 @@ Site Information:
 - Description: ${site.description}
 - Address: ${site.address}
 - Client: ${site.clientName}
-- Inspector: ${site.inspector}
-- Status: ${site.status}
 - Created: ${new Date(site.createdAt).toLocaleDateString()}
 - Last Updated: ${new Date(site.updatedAt).toLocaleDateString()}
 
@@ -74,19 +72,13 @@ TREE INVENTORY
 ==============
 
 ${trees.map((tree, index) => `
-Tree ${index + 1}: ${tree.treeData.treeNumber || `T${index + 1}`}
-- Species: ${tree.treeData.species} (${tree.treeData.commonName})
-- Location: ${tree.treeData.location}
-- DBH: ${tree.treeData.dbh}cm
-- Height: ${tree.treeData.height}m
-- Health: ${tree.treeData.treeHealth}
-- Structure: ${tree.treeData.structure}
-- Status: ${tree.status}
-- Photos: ${tree.photos.length}
-- Notes: ${tree.notes.length}
-${tree.notes.length > 0 ? `
-  Key Observations:
-${tree.notes.map(note => `  - ${note.title}: ${note.content.substring(0, 100)}${note.content.length > 100 ? '...' : ''}`).join('\n')}` : ''}
+Tree ${index + 1}: ${tree.treeNumber || `T${index + 1}`}
+- Species: ${tree.species} (${tree.commonName})
+- Location: ${tree.location}
+- DBH: ${tree.dbh}cm
+- Height: ${tree.height}m
+- Health: ${tree.treeHealth}
+- Structure: ${tree.structure}
 `).join('\n')}
 
 Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
@@ -96,82 +88,93 @@ Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeStr
 };
 
 // Tree exports
-export const exportTreesCSV = (trees: ArboristReport[]) => {
+export const exportTreesCSV = (trees: Tree[]) => {
   const headers = [
-    'title', 'treeData.treeNumber', 'treeData.species', 'treeData.commonName', 
-    'treeData.location', 'treeData.dbh', 'treeData.height', 'treeData.canopySpreadNS',
-    'treeData.canopySpreadEW', 'treeData.treeHealth', 'treeData.structure', 
-    'treeData.woundWoodDevelopment', 'treeData.extensionGrowth', 'treeData.canopyCover',
-    'clientName', 'address', 'inspector', 'date', 'status', 'photosCount', 'notesCount'
+    'treeNumber', 'species', 'commonName', 'location', 'dbh', 'height',
+    'canopySpreadNS', 'canopySpreadEW', 'treeHealth', 'structure',
+    'woundWoodDevelopment', 'extensionGrowth', 'canopyCover'
   ];
-  
-  const data = trees.map(tree => ({
-    ...tree,
-    photosCount: tree.photos.length,
-    notesCount: tree.notes.length
-  }));
-  
-  exportToCSV(data, 'trees-export', headers);
+
+  exportToCSV(trees, 'trees-export', headers);
 };
 
-export const exportSingleTreeReport = (tree: ArboristReport) => {
+export const exportSingleTreeReport = (report: ArboristReport) => {
   const content = `
-ARBORIST TREE REPORT
+ARBORIST REPORT
 ===================
 
 Report Information:
-- Title: ${tree.title}
-- Tree Number: ${tree.treeData.treeNumber}
-- Client: ${tree.clientName}
-- Address: ${tree.address}
-- Inspector: ${tree.inspector}
-- Date: ${tree.date}
-- Status: ${tree.status}
+- Title: ${report.title}
+- Client: ${report.clientName}
+- Address: ${report.address}
+- Inspector: ${report.inspector}
+- Date: ${report.date}
+- Status: ${report.status}
 
-Tree Details:
-- Scientific Name: ${tree.treeData.species}
-- Common Name: ${tree.treeData.commonName}
-- Location: ${tree.treeData.location}
-- DBH: ${tree.treeData.dbh} cm
-- Height: ${tree.treeData.height} m
-- Canopy Spread N-S: ${tree.treeData.canopySpreadNS} m
-- Canopy Spread E-W: ${tree.treeData.canopySpreadEW} m
-- Extension Growth: ${tree.treeData.extensionGrowth} mm
-- Canopy Cover: ${tree.treeData.canopyCover}%
+TREES IN THIS REPORT (${report.trees.length})
+==============
+${report.trees.map((tree, index) => `
+Tree ${index + 1}${tree.treeNumber ? ` — #${tree.treeNumber}` : ''}:
+- Scientific Name: ${tree.species}
+- Common Name: ${tree.commonName}
+- Location: ${tree.location}
+- DBH: ${tree.dbh} cm
+- Height: ${tree.height} m
+- Canopy Spread N-S: ${tree.canopySpreadNS} m
+- Canopy Spread E-W: ${tree.canopySpreadEW} m
+- Extension Growth: ${tree.extensionGrowth} mm
+- Canopy Cover: ${tree.canopyCover}%
+- Tree Health: ${tree.treeHealth}
+- Structure: ${tree.structure}
+- Wound Wood Development: ${tree.woundWoodDevelopment}
+`).join('\n---\n')}
 
-Assessment:
-- Tree Health: ${tree.treeData.treeHealth}
-- Structure: ${tree.treeData.structure}
-- Wound Wood Development: ${tree.treeData.woundWoodDevelopment}
-
-${tree.notes.length > 0 ? `
+${report.notes.length > 0 ? `
 OBSERVATIONS & NOTES
 ===================
-${tree.notes.map(note => `
+${report.notes.map(note => `
 ${note.title} (${note.category})
 ${'-'.repeat(note.title.length + note.category.length + 3)}
 ${note.content}
 Recorded: ${new Date(note.timestamp).toLocaleDateString()} at ${new Date(note.timestamp).toLocaleTimeString()}
 `).join('\n')}` : ''}
 
-${tree.photos.length > 0 ? `
+${report.photos.length > 0 ? `
 PHOTO DOCUMENTATION
 ==================
-${tree.photos.map((photo, index) => `
+${report.photos.map((photo, index) => `
 Photo ${index + 1}: ${photo.category}
 Caption: ${photo.caption}
 Date: ${new Date(photo.timestamp).toLocaleDateString()}
 `).join('\n')}` : ''}
 
-${tree.recommendations.length > 0 ? `
+${report.recommendations.length > 0 ? `
 RECOMMENDATIONS
 ==============
-${tree.recommendations.map((rec, index) => `${index + 1}. ${rec}`).join('\n')}` : ''}
+${report.recommendations.map((rec, index) => `${index + 1}. ${rec}`).join('\n')}` : ''}
 
 Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}
   `.trim();
 
-  exportToText(content, `tree-report-${tree.treeData.treeNumber || tree.title.replace(/[^a-zA-Z0-9]/g, '-')}`);
+  exportToText(content, `report-${report.title.replace(/[^a-zA-Z0-9]/g, '-') || 'untitled'}`);
+};
+
+// Report exports
+export const exportReportsCSV = (reports: ArboristReport[]) => {
+  const headers = [
+    'title', 'clientName', 'address', 'inspector', 'date', 'status',
+    'treeCount', 'photosCount', 'notesCount', 'recommendationsCount'
+  ];
+
+  const data = reports.map(report => ({
+    ...report,
+    treeCount: report.trees.length,
+    photosCount: report.photos.length,
+    notesCount: report.notes.length,
+    recommendationsCount: report.recommendations.length
+  }));
+
+  exportToCSV(data, 'reports-export', headers);
 };
 
 // Chlorophyll exports
@@ -416,9 +419,9 @@ Generated on: ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeStr
 };
 
 // Helper functions
-const getTreeHealthSummary = (trees: ArboristReport[]): string => {
+const getTreeHealthSummary = (trees: Tree[]): string => {
   const healthCounts = trees.reduce((acc, tree) => {
-    acc[tree.treeData.treeHealth] = (acc[tree.treeData.treeHealth] || 0) + 1;
+    acc[tree.treeHealth] = (acc[tree.treeHealth] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 

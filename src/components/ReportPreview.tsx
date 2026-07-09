@@ -1,20 +1,20 @@
 import React from 'react';
-import { ArboristReport } from '../types';
+import { ArboristReport, Site } from '../types';
 import { Download, Calendar, User, MapPin, TreePine, Camera, FileText } from 'lucide-react';
 
 interface ReportPreviewProps {
   report: ArboristReport;
+  site?: Site;
 }
 
-export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
+export const ReportPreview: React.FC<ReportPreviewProps> = ({ report, site }) => {
   const handleExport = () => {
-    // This would typically generate a PDF or formatted document
     const reportContent = generateReportContent(report);
     const blob = new Blob([reportContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `arborist-report-${report.title || 'untitled'}.txt`;
+    a.download = `report-${report.title || 'untitled'}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -26,26 +26,29 @@ export const ReportPreview: React.FC<ReportPreviewProps> = ({ report }) => {
 ARBORIST REPORT
 
 Report Title: ${report.title}
+Site: ${site?.name || ''}
 Client: ${report.clientName}
 Property Address: ${report.address}
 Inspector: ${report.inspector}
 Inspection Date: ${report.date}
 
-TREE INFORMATION
+TREES IN THIS REPORT (${report.trees.length})
 ================
-Tree Number: ${report.treeData.treeNumber}
-Scientific Name: ${report.treeData.species}
-Common Name: ${report.treeData.commonName}
-Location: ${report.treeData.location}
-DBH: ${report.treeData.dbh} cm
-Height: ${report.treeData.height} m
-Canopy Spread N-S: ${report.treeData.canopySpreadNS} m
-Canopy Spread E-W: ${report.treeData.canopySpreadEW} m
-Tree Health: ${report.treeData.treeHealth}
-Structure: ${report.treeData.structure}
-Wound Wood Development: ${report.treeData.woundWoodDevelopment}
-Extension Growth: ${report.treeData.extensionGrowth} mm
-Canopy Cover: ${report.treeData.canopyCover}%
+${report.trees.map(tree => `
+Tree Number: ${tree.treeNumber}
+Scientific Name: ${tree.species}
+Common Name: ${tree.commonName}
+Location: ${tree.location}
+DBH: ${tree.dbh} cm
+Height: ${tree.height} m
+Canopy Spread N-S: ${tree.canopySpreadNS} m
+Canopy Spread E-W: ${tree.canopySpreadEW} m
+Tree Health: ${tree.treeHealth}
+Structure: ${tree.structure}
+Wound Wood Development: ${tree.woundWoodDevelopment}
+Extension Growth: ${tree.extensionGrowth} mm
+Canopy Cover: ${tree.canopyCover}%
+`).join('\n---\n')}
 
 OBSERVATIONS & NOTES
 ===================
@@ -93,6 +96,7 @@ Generated on: ${new Date().toLocaleDateString()}
         <div className="bg-[var(--ink)] text-[var(--cream)] p-6">
           <h1 className="text-2xl font-bold mb-2">ARBORIST REPORT</h1>
           <h2 className="text-xl">{report.title || 'Untitled Report'}</h2>
+          {site && <p className="text-sm opacity-80 mt-1">{site.name}</p>}
         </div>
 
         {/* Report Information */}
@@ -129,60 +133,69 @@ Generated on: ${new Date().toLocaleDateString()}
         <div className="p-6 border-b">
           <div className="flex items-center gap-2 mb-4">
             <TreePine className="text-[var(--accent)]" size={24} />
-            <h3 className="text-lg font-semibold">Tree Information</h3>
+            <h3 className="text-lg font-semibold">Trees in this Report ({report.trees.length})</h3>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {report.treeData.treeNumber && (
-              <div>
-                <span className="font-medium">Tree Number:</span> {report.treeData.treeNumber}
+
+          <div className="space-y-6">
+            {report.trees.map((tree, idx) => (
+              <div key={tree.id} className={idx > 0 ? 'pt-6 border-t' : ''}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {tree.treeNumber && (
+                    <div>
+                      <span className="font-medium">Tree Number:</span> {tree.treeNumber}
+                    </div>
+                  )}
+                  <div>
+                    <span className="font-medium">Scientific Name:</span> {tree.species}
+                  </div>
+                  <div>
+                    <span className="font-medium">Common Name:</span> {tree.commonName}
+                  </div>
+                  <div>
+                    <span className="font-medium">Location:</span> {tree.location}
+                  </div>
+                  <div>
+                    <span className="font-medium">DBH:</span> {tree.dbh} cm
+                  </div>
+                  <div>
+                    <span className="font-medium">Height:</span> {tree.height} m
+                  </div>
+                  <div>
+                    <span className="font-medium">Canopy Spread N-S:</span> {tree.canopySpreadNS} m
+                  </div>
+                  <div>
+                    <span className="font-medium">Canopy Spread E-W:</span> {tree.canopySpreadEW} m
+                  </div>
+                  <div>
+                    <span className="font-medium">Extension Growth:</span> {tree.extensionGrowth} mm
+                  </div>
+                  <div>
+                    <span className="font-medium">Canopy Cover:</span> {tree.canopyCover}%
+                  </div>
+                  <div>
+                    <span className="font-medium">Tree Health:</span>
+                    <span className={`ml-2 font-semibold ${getConditionColor(tree.treeHealth)}`}>
+                      {tree.treeHealth}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Structure:</span>
+                    <span className={`ml-2 font-semibold ${getConditionColor(tree.structure)}`}>
+                      {tree.structure}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Wound Wood Development:</span>
+                    <span className={`ml-2 font-semibold ${getConditionColor(tree.woundWoodDevelopment)}`}>
+                      {tree.woundWoodDevelopment}
+                    </span>
+                  </div>
+                </div>
               </div>
+            ))}
+            {report.trees.length === 0 && (
+              <p className="text-[var(--text-muted)]">No trees attached to this report yet.</p>
             )}
-            <div>
-              <span className="font-medium">Scientific Name:</span> {report.treeData.species}
-            </div>
-            <div>
-              <span className="font-medium">Common Name:</span> {report.treeData.commonName}
-            </div>
-            <div>
-              <span className="font-medium">Location:</span> {report.treeData.location}
-            </div>
-            <div>
-              <span className="font-medium">DBH:</span> {report.treeData.dbh} cm
-            </div>
-            <div>
-              <span className="font-medium">Height:</span> {report.treeData.height} m
-            </div>
-            <div>
-              <span className="font-medium">Canopy Spread N-S:</span> {report.treeData.canopySpreadNS} m
-            </div>
-            <div>
-              <span className="font-medium">Canopy Spread E-W:</span> {report.treeData.canopySpreadEW} m
-            </div>
-            <div>
-              <span className="font-medium">Extension Growth:</span> {report.treeData.extensionGrowth} mm
-            </div>
-            <div>
-              <span className="font-medium">Canopy Cover:</span> {report.treeData.canopyCover}%
-            </div>
-            <div>
-              <span className="font-medium">Tree Health:</span> 
-              <span className={`ml-2 font-semibold ${getConditionColor(report.treeData.treeHealth)}`}>
-                {report.treeData.treeHealth}
-              </span>
-            </div>
-            <div>
-              <span className="font-medium">Structure:</span> 
-              <span className={`ml-2 font-semibold ${getConditionColor(report.treeData.structure)}`}>
-                {report.treeData.structure}
-              </span>
-            </div>
-            <div>
-              <span className="font-medium">Wound Wood Development:</span> 
-              <span className={`ml-2 font-semibold ${getConditionColor(report.treeData.woundWoodDevelopment)}`}>
-                {report.treeData.woundWoodDevelopment}
-              </span>
-            </div>
           </div>
         </div>
 

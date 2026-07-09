@@ -1,12 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { ArboristReport } from '../types';
+import { Tree } from '../types';
 import { X, Upload, FileText, AlertCircle, CheckCircle, Download } from 'lucide-react';
 import { parseDocumentData, ImportedTreeData } from '../utils/documentParser';
 
 interface ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (trees: ArboristReport[]) => void;
+  onImport: (trees: Tree[]) => void;
   siteId: string;
   siteName: string;
 }
@@ -92,45 +92,28 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
   const handleImport = () => {
     const selectedData = importedData.filter((_, index) => selectedTrees.has(index));
-    
-    const reports: ArboristReport[] = selectedData.map(data => ({
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2),
-      title: data.title || `Tree ${data.treeNumber || 'Unknown'}`,
-      clientName: '',
-      address: '',
-      inspector: '',
-      date: new Date().toISOString().split('T')[0],
-      treeData: {
-        treeNumber: data.treeNumber || '',
-        species: data.species || '',
-        commonName: data.commonName || '',
-        dbh: data.dbh || 0,
-        height: data.height || 0,
-        canopySpreadNS: data.canopySpreadNS || 0,
-        canopySpreadEW: data.canopySpreadEW || 0,
-        treeHealth: data.treeHealth || 'Good',
-        extensionGrowth: data.extensionGrowth || 0,
-        structure: data.structure || 'Good',
-        woundWoodDevelopment: data.woundWoodDevelopment || 'Good',
-        canopyCover: data.canopyCover || 0,
-        location: data.location || ''
-      },
-      photos: [],
-      notes: data.notes ? [{
-        id: Date.now().toString(),
-        title: 'Imported Notes',
-        content: data.notes,
-        category: 'observation' as const,
-        timestamp: Date.now()
-      }] : [],
-      recommendations: data.recommendations || [],
-      status: 'draft' as const,
+
+    const trees: Tree[] = selectedData.map(data => ({
+      id: crypto.randomUUID(),
+      siteId,
+      treeNumber: data.treeNumber || '',
+      species: data.species || '',
+      commonName: data.commonName || '',
+      dbh: data.dbh || 0,
+      height: data.height || 0,
+      canopySpreadNS: data.canopySpreadNS || 0,
+      canopySpreadEW: data.canopySpreadEW || 0,
+      treeHealth: (data.treeHealth as Tree['treeHealth']) || 'Good',
+      extensionGrowth: data.extensionGrowth || 0,
+      structure: (data.structure as Tree['structure']) || 'Good',
+      woundWoodDevelopment: (data.woundWoodDevelopment as Tree['woundWoodDevelopment']) || 'Good',
+      canopyCover: data.canopyCover || 0,
+      location: data.location || '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      siteId
     }));
 
-    onImport(reports);
+    onImport(trees);
     onClose();
     resetModal();
   };

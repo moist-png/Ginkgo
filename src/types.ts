@@ -34,14 +34,23 @@ export interface Note {
   timestamp: number;
 }
 
+export interface Tree extends TreeData {
+  id: string;
+  siteId: string; // A tree always belongs to exactly one site
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
 export interface ArboristReport {
   id: string;
+  siteId: string; // A report always belongs to exactly one site
   title: string;
   clientName: string;
   address: string;
   inspector: string;
   date: string;
-  treeData: TreeData;
+  trees: Tree[]; // The tree(s) this report is about — one or more, always same site
   photos: Photo[];
   notes: Note[];
   recommendations: string[];
@@ -49,7 +58,6 @@ export interface ArboristReport {
   createdAt: number;
   updatedAt: number;
   deletedAt?: number;
-  siteId?: string; // Link to site if part of a site registry
 }
 
 export interface Site {

@@ -14,7 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import type {
-  ArboristReport, TreeData, Job, Site, Quote, DailyRisk, ChlorophyllReading,
+  ArboristReport, Tree, TreeData, Job, Site, Quote, DailyRisk, ChlorophyllReading,
 } from '../types';
 
 const nowIso = () => new Date().toISOString();
@@ -41,33 +41,77 @@ export const defaultTreeData = (): TreeData => ({
 
 export const normaliseTreeData = (v: any): TreeData => ({ ...defaultTreeData(), ...(v || {}) });
 
+// ---- Tree -------------------------------------------------------------
+export const fromDbTree = (t: any): Tree => ({
+  id: str(t?.id) || crypto.randomUUID(),
+  siteId: str(t?.site_id ?? t?.siteId),
+  treeNumber: str(t?.tree_number ?? t?.treeNumber),
+  species: str(t?.species),
+  commonName: str(t?.common_name ?? t?.commonName),
+  dbh: num(t?.dbh),
+  height: num(t?.height),
+  canopySpreadNS: num(t?.canopy_spread_ns ?? t?.canopySpreadNS),
+  canopySpreadEW: num(t?.canopy_spread_ew ?? t?.canopySpreadEW),
+  treeHealth: (t?.tree_health ?? t?.treeHealth) || 'Good',
+  extensionGrowth: num(t?.extension_growth ?? t?.extensionGrowth),
+  structure: (t?.structure) || 'Good',
+  woundWoodDevelopment: (t?.wound_wood_development ?? t?.woundWoodDevelopment) || 'Good',
+  canopyCover: num(t?.canopy_cover ?? t?.canopyCover),
+  location: str(t?.location),
+  coordinates: (t?.lat != null && t?.lng != null) ? { lat: num(t.lat), lng: num(t.lng) } : undefined,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+});
+
+export const toDbTree = (t: Tree): Record<string, any> => ({
+  id: t.id,
+  site_id: t.siteId,
+  tree_number: str(t.treeNumber),
+  species: str(t.species),
+  common_name: str(t.commonName),
+  dbh: num(t.dbh),
+  height: num(t.height),
+  canopy_spread_ns: num(t.canopySpreadNS),
+  canopy_spread_ew: num(t.canopySpreadEW),
+  tree_health: t.treeHealth || 'Good',
+  extension_growth: num(t.extensionGrowth),
+  structure: t.structure || 'Good',
+  wound_wood_development: t.woundWoodDevelopment || 'Good',
+  canopy_cover: num(t.canopyCover),
+  location: str(t.location),
+  lat: t.coordinates?.lat ?? null,
+  lng: t.coordinates?.lng ?? null,
+  updated_at: nowIso(),
+});
+
 // ---- Report ---------------------------------------------------------------
-export const fromDbReport = (r: any): ArboristReport => ({
+// `trees` is passed in separately since it comes from a join against
+// report_trees + trees, not from a column on the reports row itself.
+export const fromDbReport = (r: any, trees: Tree[] = []): ArboristReport => ({
   id: str(r?.id) || crypto.randomUUID(),
+  siteId: str(r?.site_id ?? r?.siteId),
   title: str(r?.title),
   clientName: str(r?.client_name ?? r?.clientName),
   address: str(r?.address),
   inspector: str(r?.inspector),
   date: str(r?.date) || nowIso().split('T')[0],
-  treeData: normaliseTreeData(r?.tree_data ?? r?.treeData),
+  trees,
   photos: arr(r?.photos),
   notes: arr(r?.notes),
   recommendations: arr<string>(r?.recommendations),
   status: (r?.status as ArboristReport['status']) || 'draft',
   createdAt: Date.now(),
   updatedAt: Date.now(),
-  siteId: r?.site_id ?? r?.siteId ?? undefined,
 });
 
 export const toDbReport = (r: ArboristReport): Record<string, any> => ({
   id: r.id,
-  site_id: r.siteId ?? null,
+  site_id: r.siteId,
   title: str(r.title),
   client_name: str(r.clientName),
   address: str(r.address),
   inspector: str(r.inspector),
   date: r.date,
-  tree_data: r.treeData ?? {},
   recommendations: r.recommendations ?? [],
   status: r.status || 'draft',
   updated_at: nowIso(),

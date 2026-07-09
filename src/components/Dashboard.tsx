@@ -257,6 +257,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           {[
             { label: 'New Job', icon: Briefcase, action: 'new-job' },
             { label: 'New Site', icon: MapPin, action: 'new-site' },
+            { label: 'New Report', icon: TreePine, action: 'new-report' },
             { label: 'New Quote', icon: FileText, action: 'new-quote' },
             { label: 'Risk Assessment', icon: AlertTriangle, action: 'new-risk' },
             { label: 'Team', icon: Users, action: 'team' },

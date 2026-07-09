@@ -7,6 +7,7 @@ import { Dashboard } from './components/Dashboard';
 import { TeamManagement } from './components/TeamManagement';
 import { ReportList } from './components/ReportList';
 import { ReportEditor } from './components/ReportEditor';
+import { TreeEditor } from './components/TreeEditor';
 import { SiteList } from './components/SiteList';
 import { SiteEditor } from './components/SiteEditor';
 import { SiteDetailScreen } from './components/SiteDetailScreen';
@@ -22,14 +23,14 @@ import { InviteJoin } from './components/InviteJoin';
 import { MessageBoard } from './components/MessageBoard';
 import { NotificationBell } from './components/NotificationBell';
 import { db, getPendingCount, syncQueue } from './utils/offline';
-import { fromDbSite, fromDbReport, fromDbJob, fromDbQuote, fromDbRisk } from './utils/mappers';
+import { fromDbSite, fromDbReport, fromDbTree, fromDbJob, fromDbQuote, fromDbRisk, toDbTree } from './utils/mappers';
 import ginkgoMark from './assets/ginkgo-mark.png';
 import {
   Home, TreePine, Shield, FileText, Menu, X,
   LogOut, Trash2, Users, LayoutDashboard, WifiOff, MessageSquare
 } from 'lucide-react';
 
-type AppView = 'dashboard' | 'sites' | 'jobs' | 'daily-risk' | 'quotes' | 'team' | 'board';
+type AppView = 'dashboard' | 'sites' | 'reports' | 'jobs' | 'daily-risk' | 'quotes' | 'team' | 'board';
 
 // Check if we're on a portal URL
 const getPortalToken = () => {
@@ -45,13 +46,16 @@ const getJoinCode = () => {
   return match ? match[1] : null;
 };
 
+const nowIso = () => new Date().toISOString();
+const today = () => nowIso().split('T')[0];
+
 function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
-  const [sitesSubView, setSitesSubView] = useState<'sites' | 'registry'>('sites');
-  const [siteDetailSubView, setSiteDetailSubView] = useState<'trees' | 'work-done'>('trees');
+  const [siteDetailSubView, setSiteDetailSubView] = useState<'trees' | 'reports' | 'work-done'>('trees');
   const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [selectedTree, setSelectedTree] = useState<any>(null);
   const [selectedSite, setSelectedSite] = useState<any>(null);
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [selectedRisk, setSelectedRisk] = useState<any>(null);
@@ -64,6 +68,7 @@ function App() {
   const [pendingSync, setPendingSync] = useState(0);
   const [online, setOnline] = useState(navigator.onLine);
   const [reports, setReports] = useState<any[]>([]);
+  const [trees, setTrees] = useState<any[]>([]);
   const [sites, setSites] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
   const [quotes, setQuotes] = useState<any[]>([]);
@@ -106,9 +111,11 @@ function App() {
   }, [session]);
 
   const loadCoreData = async () => {
-    const [sitesRes, reportsRes, jobsRes, quotesRes, risksRes, teamRes] = await Promise.all([
+    const [sitesRes, reportsRes, treesRes, reportTreesRes, jobsRes, quotesRes, risksRes, teamRes] = await Promise.all([
       supabase.from('sites').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
       supabase.from('reports').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
+      supabase.from('trees').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
+      supabase.from('report_trees').select('*'),
       supabase.from('jobs').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
       supabase.from('quotes').select('*').order('updated_at', { ascending: false }),
       supabase.from('daily_risks').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
@@ -116,7 +123,28 @@ function App() {
     ]);
     if (teamRes.data) setTeamMembers(teamRes.data as TeamMember[]);
     if (sitesRes.data) setSites(sitesRes.data.map(fromDbSite));
-    if (reportsRes.data) setReports(reportsRes.data.map(fromDbReport));
+
+    const mappedTrees = (treesRes.data || []).map(fromDbTree);
+    setTrees(mappedTrees);
+    const treesById = new Map(mappedTrees.map((t: any) => [t.id, t]));
+
+    // Group report_trees links by report so each report can carry its full tree list.
+    const treeIdsByReport = new Map<string, string[]>();
+    (reportTreesRes.data || []).forEach((link: any) => {
+      const list = treeIdsByReport.get(link.report_id) || [];
+      list.push(link.tree_id);
+      treeIdsByReport.set(link.report_id, list);
+    });
+
+    if (reportsRes.data) {
+      const mappedReports = reportsRes.data.map((r: any) => {
+        const treeIds = treeIdsByReport.get(r.id) || [];
+        const reportTrees = treeIds.map(id => treesById.get(id)).filter(Boolean);
+        return fromDbReport(r, reportTrees as any[]);
+      });
+      setReports(mappedReports);
+    }
+
     if (jobsRes.data) setJobs(jobsRes.data.map(fromDbJob));
     if (quotesRes.data) setQuotes(quotesRes.data.map(fromDbQuote));
     if (risksRes.data) setRisks(risksRes.data.map(fromDbRisk));
@@ -135,27 +163,55 @@ function App() {
 
   const handleViewChange = (view: AppView | string) => {
     // Handle quick action strings
-    if (view === 'new-job') { setCurrentView('jobs'); setSelectedJob({ id: crypto.randomUUID(), title: '', client_name: '', location: '', date: new Date().toISOString().split('T')[0], start_time: '', end_time: '', time_spent: 0, work_completed: '', work_to_complete: '', notes: '', status: 'scheduled', job_type: 'assessment', hourly_rate: 0, total_cost: 0, assigned_to: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); return; }
-    if (view === 'new-site') { setCurrentView('sites'); setEditingSite({ id: crypto.randomUUID(), name: '', description: '', address: '', client_name: '', client_phone: '', client_email: '', portal_enabled: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); return; }
-    if (view === 'new-quote') { setCurrentView('quotes'); setSelectedQuote({ id: crypto.randomUUID(), client_name: '', address: '', mobile: '', site_contact: '', scheduled_date: new Date().toISOString().split('T')[0], scheduled_time: '09:00', job_description: [{ id: crypto.randomUUID(), description: '' }], additional_equipment: '', access_parking: '', status: 'new', archived: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); return; }
-    if (view === 'new-risk') { setCurrentView('daily-risk'); setSelectedRisk({ id: crypto.randomUUID(), site_address: '', date: new Date().toISOString().split('T')[0], client_name: '', client_mobile: '', first_aid_location: '', nearest_hospital: '', hazards: {}, hazard_controls: [], signatures: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); return; }
+    if (view === 'new-job') { setCurrentView('jobs'); setSelectedJob({ id: crypto.randomUUID(), title: '', client_name: '', location: '', date: today(), start_time: '', end_time: '', time_spent: 0, work_completed: '', work_to_complete: '', notes: '', status: 'scheduled', job_type: 'assessment', hourly_rate: 0, total_cost: 0, assigned_to: [], created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); return; }
+    if (view === 'new-site') { setCurrentView('sites'); setEditingSite({ id: crypto.randomUUID(), name: '', description: '', address: '', client_name: '', client_phone: '', client_email: '', portal_enabled: false, created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); return; }
+    if (view === 'new-report') { setCurrentView('reports'); setSelectedReport(blankReportShell()); setIsNewItem(true); return; }
+    if (view === 'new-quote') { setCurrentView('quotes'); setSelectedQuote({ id: crypto.randomUUID(), client_name: '', address: '', mobile: '', site_contact: '', scheduled_date: today(), scheduled_time: '09:00', job_description: [{ id: crypto.randomUUID(), description: '' }], additional_equipment: '', access_parking: '', status: 'new', archived: false, created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); return; }
+    if (view === 'new-risk') { setCurrentView('daily-risk'); setSelectedRisk({ id: crypto.randomUUID(), site_address: '', date: today(), client_name: '', client_mobile: '', first_aid_location: '', nearest_hospital: '', hazards: {}, hazard_controls: [], signatures: [], created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); return; }
     if (view === 'team') { setCurrentView('team'); }
     else setCurrentView(view as AppView);
     setSearchQuery('');
-    setSelectedReport(null); setSelectedSite(null);
+    setSelectedReport(null); setSelectedTree(null); setSelectedSite(null);
     setSelectedJob(null); setSelectedRisk(null); setSelectedQuote(null);
     setEditingSite(null); setIsNewItem(false); setIsMobileMenuOpen(false);
   };
 
   const handleLogout = async () => { await signOut(); setSession(null); };
 
-  const getTreesForSite = (siteId: string) => reports.filter(r => r.siteId === siteId);
-  const getJobsForSite = (siteId: string) => jobs.filter(j => j.siteId === siteId);
+  const blankReportShell = (siteId = '') => {
+    const site = sites.find((s: any) => s.id === siteId);
+    return {
+      id: crypto.randomUUID(), siteId, title: '', clientName: site?.clientName || '', address: site?.address || '',
+      inspector: '', date: today(), trees: [], photos: [], notes: [], recommendations: [], status: 'draft',
+      createdAt: Date.now(), updatedAt: Date.now(),
+    };
+  };
+
+  const blankTreeShell = (siteId: string) => ({
+    id: crypto.randomUUID(), siteId, treeNumber: '', species: '', commonName: '', dbh: 0, height: 0,
+    canopySpreadNS: 0, canopySpreadEW: 0, treeHealth: 'Good', extensionGrowth: 0, structure: 'Good',
+    woundWoodDevelopment: 'Good', canopyCover: 0, location: '', createdAt: Date.now(), updatedAt: Date.now(),
+  });
+
+  const getTreesForSite = (siteId: string) => trees.filter((t: any) => t.siteId === siteId);
+  const getReportsForSite = (siteId: string) => reports.filter((r: any) => r.siteId === siteId);
   const getTreeCountForSite = (siteId: string) => getTreesForSite(siteId).length;
+
+  const handleImportTrees = async (importedTrees: any[]) => {
+    try {
+      for (const t of importedTrees) {
+        await db.upsert('trees', toDbTree(t));
+      }
+      await loadCoreData();
+    } catch (err) {
+      console.error('Failed to import trees:', err);
+    }
+  };
 
   const navItems = [
     { view: 'dashboard' as AppView, icon: LayoutDashboard, label: 'Dashboard' },
     { view: 'sites' as AppView, icon: Home, label: 'Sites' },
+    { view: 'reports' as AppView, icon: FileText, label: 'Reports' },
     { view: 'jobs' as AppView, icon: TreePine, label: 'Jobs' },
     { view: 'daily-risk' as AppView, icon: Shield, label: 'Risk' },
     { view: 'quotes' as AppView, icon: FileText, label: 'Quotes' },
@@ -184,7 +240,35 @@ function App() {
   };
 
   // Full-screen editor views
-  if (selectedReport) return <ReportEditor report={selectedReport} onSave={r => { setSelectedReport(null); loadCoreData(); }} onBack={() => setSelectedReport(null)} />;
+  if (selectedReport) return (
+    <ReportEditor
+      report={selectedReport}
+      sites={sites}
+      allTrees={trees}
+      isNew={isNewItem}
+      onSave={() => { setSelectedReport(null); setIsNewItem(false); loadCoreData(); }}
+      onDelete={() => { setSelectedReport(null); setIsNewItem(false); loadCoreData(); }}
+      onBack={() => { setSelectedReport(null); setIsNewItem(false); }}
+    />
+  );
+  if (selectedTree) return (
+    <TreeEditor
+      tree={selectedTree}
+      site={sites.find((s: any) => s.id === (selectedTree.siteId || selectedTree.site_id))}
+      reports={reports.filter((r: any) => r.trees.some((t: any) => t.id === selectedTree.id))}
+      isNew={isNewItem}
+      onSave={() => { setSelectedTree(null); setIsNewItem(false); loadCoreData(); }}
+      onDelete={() => { setSelectedTree(null); setIsNewItem(false); loadCoreData(); }}
+      onBack={() => { setSelectedTree(null); setIsNewItem(false); }}
+      onCreateReportForTree={(tree: any) => {
+        const shell = { ...blankReportShell(tree.siteId), trees: [tree] };
+        setSelectedTree(null);
+        setSelectedReport(shell);
+        setIsNewItem(true);
+      }}
+      onOpenReport={(report: any) => { setSelectedTree(null); setSelectedReport(report); setIsNewItem(false); }}
+    />
+  );
   if (editingSite) return <SiteEditor site={editingSite} onSave={s => { setEditingSite(null); setIsNewItem(false); loadCoreData(); if (isNewItem) setSelectedSite(s); }} onDelete={() => { setEditingSite(null); setSelectedSite(null); loadCoreData(); }} onBack={() => { setEditingSite(null); setIsNewItem(false); }} isNew={isNewItem} />;
   if (selectedJob) return <JobEditor job={selectedJob} teamMembers={teamMembers} onSave={() => { setSelectedJob(null); loadCoreData(); }} onDelete={() => { setSelectedJob(null); loadCoreData(); }} onBack={() => setSelectedJob(null)} isNew={isNewItem} />;
   if (selectedRisk) return <DailyRiskEditor risk={selectedRisk} onSave={() => { setSelectedRisk(null); loadCoreData(); }} onDelete={() => { setSelectedRisk(null); loadCoreData(); }} onBack={() => setSelectedRisk(null)} isNew={isNewItem} />;
@@ -193,16 +277,19 @@ function App() {
     <SiteDetailScreen
       site={selectedSite}
       trees={getTreesForSite(selectedSite.id)}
+      reports={getReportsForSite(selectedSite.id)}
       jobs={jobs}
       sitesSubView={siteDetailSubView}
       onSitesSubViewChange={setSiteDetailSubView}
-      onSelectTree={setSelectedReport}
+      onSelectTree={(tree) => { setSelectedTree(tree); setIsNewItem(false); }}
+      onSelectReport={(report) => { setSelectedReport(report); setIsNewItem(false); }}
       onSelectJob={setSelectedJob}
-      onCreateTree={() => { const r = { id: crypto.randomUUID(), site_id: selectedSite.id, title: '', client_name: selectedSite.clientName, address: selectedSite.address, inspector: '', date: new Date().toISOString().split('T')[0], tree_data: {}, recommendations: [], status: 'draft', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }; setSelectedReport(r); setIsNewItem(true); }}
-      onCreateJob={() => { const j = { id: crypto.randomUUID(), site_id: selectedSite.id, title: '', client_name: selectedSite.clientName, location: selectedSite.address, date: new Date().toISOString().split('T')[0], start_time: '', end_time: '', time_spent: 0, work_completed: '', work_to_complete: '', notes: '', status: 'scheduled', job_type: 'assessment', hourly_rate: 0, total_cost: 0, assigned_to: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }; setSelectedJob(j); setIsNewItem(true); }}
+      onCreateTree={() => { setSelectedTree(blankTreeShell(selectedSite.id)); setIsNewItem(true); }}
+      onCreateReport={() => { setSelectedReport(blankReportShell(selectedSite.id)); setIsNewItem(true); }}
+      onCreateJob={() => { const j = { id: crypto.randomUUID(), site_id: selectedSite.id, title: '', client_name: selectedSite.clientName, location: selectedSite.address, date: today(), start_time: '', end_time: '', time_spent: 0, work_completed: '', work_to_complete: '', notes: '', status: 'scheduled', job_type: 'assessment', hourly_rate: 0, total_cost: 0, assigned_to: [], created_at: nowIso(), updated_at: nowIso() }; setSelectedJob(j); setIsNewItem(true); }}
       onBackToSites={() => setSelectedSite(null)}
       onEditSite={() => { setEditingSite(selectedSite); setIsNewItem(false); }}
-      onImportTrees={() => {}}
+      onImportTrees={handleImportTrees}
       searchQuery={searchQuery}
       onSearchChange={setSearchQuery}
     />
@@ -287,27 +374,32 @@ function App() {
         {currentView === 'team' && <TeamManagement />}
 
         {currentView === 'sites' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--border)' }}>
-              {[{ id: 'sites', label: `Site Registry (${sites.length})` }, { id: 'registry', label: `Tree Registry (${reports.filter(r => !r.siteId).length})`, icon: true }].map(({ id, label, icon }) => (
-                <button key={id} onClick={() => setSitesSubView(id as any)} style={{ padding: '8px 16px', fontSize: '14px', fontWeight: '500', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: sitesSubView === id ? '2px solid var(--accent)' : '2px solid transparent', color: sitesSubView === id ? 'var(--accent)' : 'var(--text-muted)', marginBottom: '-1px', transition: 'all 0.15s' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {sitesSubView === 'sites'
-              ? <SiteList sites={sites} onSelectSite={setSelectedSite} onCreateSite={() => { setEditingSite({ id: crypto.randomUUID(), name: '', description: '', address: '', client_name: '', client_phone: '', client_email: '', portal_enabled: false, client_portal_token: '', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} getTreeCountForSite={getTreeCountForSite} />
-              : <ReportList reports={reports.filter(r => !r.siteId)} onSelectReport={setSelectedReport} onCreateReport={() => { setSelectedReport({ id: crypto.randomUUID(), title: '', client_name: '', address: '', inspector: '', date: new Date().toISOString().split('T')[0], tree_data: {}, recommendations: [], status: 'draft', created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-            }
-          </div>
+          <SiteList
+            sites={sites}
+            onSelectSite={setSelectedSite}
+            onCreateSite={() => { setEditingSite({ id: crypto.randomUUID(), name: '', description: '', address: '', client_name: '', client_phone: '', client_email: '', portal_enabled: false, client_portal_token: '', created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); }}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            getTreeCountForSite={getTreeCountForSite}
+          />
         )}
 
+        {currentView === 'reports' && (
+          <ReportList
+            reports={reports}
+            sites={sites}
+            onSelectReport={(r) => { setSelectedReport(r); setIsNewItem(false); }}
+            onCreateReport={() => { setSelectedReport(blankReportShell()); setIsNewItem(true); }}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+          />
+        )}
 
-        {currentView === 'jobs' && <JobList jobs={jobs} teamMembers={teamMembers} onSelectJob={setSelectedJob} onCreateJob={() => { setSelectedJob({ id: crypto.randomUUID(), title: '', client_name: '', location: '', date: new Date().toISOString().split('T')[0], start_time: '', end_time: '', time_spent: 0, work_completed: '', work_to_complete: '', notes: '', status: 'scheduled', job_type: 'assessment', hourly_rate: 0, total_cost: 0, assigned_to: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+        {currentView === 'jobs' && <JobList jobs={jobs} teamMembers={teamMembers} onSelectJob={setSelectedJob} onCreateJob={() => { setSelectedJob({ id: crypto.randomUUID(), title: '', client_name: '', location: '', date: today(), start_time: '', end_time: '', time_spent: 0, work_completed: '', work_to_complete: '', notes: '', status: 'scheduled', job_type: 'assessment', hourly_rate: 0, total_cost: 0, assigned_to: [], created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
 
-        {currentView === 'daily-risk' && <DailyRiskList risks={risks} onSelectRisk={setSelectedRisk} onCreateRisk={() => { setSelectedRisk({ id: crypto.randomUUID(), site_address: '', date: new Date().toISOString().split('T')[0], client_name: '', client_mobile: '', first_aid_location: '', nearest_hospital: '', hazards: {workingAtHeights:false,unstableGround:false,powerlines:false,undergroundServices:false,siteWorkers:false,pedestrians:false,traffic:false,noise:false,chainsaws:false,loweringDevices:false,ewp:false,crane:false,deadBranches:false,brokenBranches:false,deadTree:false,barkInclusions:false,treeLean:false,fallenTree:false,wildlife:false}, hazard_controls: [], signatures: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+        {currentView === 'daily-risk' && <DailyRiskList risks={risks} onSelectRisk={setSelectedRisk} onCreateRisk={() => { setSelectedRisk({ id: crypto.randomUUID(), site_address: '', date: today(), client_name: '', client_mobile: '', first_aid_location: '', nearest_hospital: '', hazards: {workingAtHeights:false,unstableGround:false,powerlines:false,undergroundServices:false,siteWorkers:false,pedestrians:false,traffic:false,noise:false,chainsaws:false,loweringDevices:false,ewp:false,crane:false,deadBranches:false,brokenBranches:false,deadTree:false,barkInclusions:false,treeLean:false,fallenTree:false,wildlife:false}, hazard_controls: [], signatures: [], created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); }} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
 
-        {currentView === 'quotes' && <QuoteList quotes={quotes} teamMembers={teamMembers} onSelectQuote={setSelectedQuote} onCreateQuote={() => { setSelectedQuote({ id: crypto.randomUUID(), client_name: '', address: '', mobile: '', site_contact: '', scheduled_date: new Date().toISOString().split('T')[0], scheduled_time: '09:00', job_description: [{ id: crypto.randomUUID(), description: '' }], additional_equipment: '', access_parking: '', status: 'new', archived: false, assigned_to: [], created_at: new Date().toISOString(), updated_at: new Date().toISOString() }); setIsNewItem(true); }} onImportQuotes={() => {}} onUpdateQuoteStatus={handleUpdateQuoteStatus} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
+        {currentView === 'quotes' && <QuoteList quotes={quotes} teamMembers={teamMembers} onSelectQuote={setSelectedQuote} onCreateQuote={() => { setSelectedQuote({ id: crypto.randomUUID(), client_name: '', address: '', mobile: '', site_contact: '', scheduled_date: today(), scheduled_time: '09:00', job_description: [{ id: crypto.randomUUID(), description: '' }], additional_equipment: '', access_parking: '', status: 'new', archived: false, assigned_to: [], created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); }} onImportQuotes={() => {}} onUpdateQuoteStatus={handleUpdateQuoteStatus} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
 
         {currentView === 'board' && <MessageBoard teamMembers={teamMembers} />}
       </main>
