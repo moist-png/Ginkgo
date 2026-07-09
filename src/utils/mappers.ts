@@ -61,6 +61,7 @@ export const fromDbTree = (t: any): Tree => ({
   location: str(t?.location),
   coordinates: (t?.lat != null && t?.lng != null) ? { lat: num(t.lat), lng: num(t.lng) } : undefined,
   notes: arr(t?.notes),
+  protectionZone: (t?.protection_zone ?? t?.protectionZone) || undefined,
   createdAt: Date.now(),
   updatedAt: Date.now(),
 });
@@ -84,6 +85,7 @@ export const toDbTree = (t: Tree): Record<string, any> => ({
   lat: t.coordinates?.lat ?? null,
   lng: t.coordinates?.lng ?? null,
   notes: t.notes ?? [],
+  protection_zone: t.protectionZone ?? null,
   updated_at: nowIso(),
 });
 

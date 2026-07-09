@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArboristReport, Site } from '../types';
 import { Download, Calendar, User, MapPin, TreePine, Camera, FileText } from 'lucide-react';
+import { protectionZoneTextLines } from '../utils/protectionZone';
 
 interface ReportPreviewProps {
   report: ArboristReport;
@@ -48,6 +49,7 @@ Structure: ${tree.structure}
 Wound Wood Development: ${tree.woundWoodDevelopment}
 Extension Growth: ${tree.extensionGrowth} mm
 Canopy Cover: ${tree.canopyCover}%
+${tree.protectionZone ? `${protectionZoneTextLines(tree).join('\n')}` : ''}
 `).join('\n---\n')}
 
 OBSERVATIONS & NOTES
@@ -191,6 +193,14 @@ Generated on: ${new Date().toLocaleDateString()}
                     </span>
                   </div>
                 </div>
+                {tree.protectionZone && (
+                  <div className="mt-3 pt-3 border-t rounded-lg" style={{ borderColor: 'var(--border)' }}>
+                    <p className="font-medium mb-1">Tree Protection Zone / Structural Root Zone</p>
+                    {protectionZoneTextLines(tree).map((line, i) => (
+                      <p key={i} className="text-sm" style={{ color: 'var(--text-secondary)' }}>{line}</p>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             {report.trees.length === 0 && (

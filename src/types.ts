@@ -1,3 +1,21 @@
+export interface ProtectionZoneEncroachment {
+  mode: 'straight' | 'corner';
+  areaPct: number;
+  severity: 'none' | 'minor' | 'major' | 'srz';
+  distanceM?: number; // straight mode
+  wallHorizontalM?: number; // corner mode
+  wallVerticalM?: number; // corner mode
+}
+
+export interface ProtectionZoneResult {
+  dbhCm: number;
+  srzDiameterCm: number;
+  tpzRadiusM: number;
+  srzRadiusM: number;
+  encroachment?: ProtectionZoneEncroachment;
+  calculatedAt: number;
+}
+
 export interface TreeData {
   treeNumber: string;
   species: string;
@@ -17,6 +35,7 @@ export interface TreeData {
     lng: number;
   };
   notes: Note[];
+  protectionZone?: ProtectionZoneResult;
 }
 
 export interface Photo {

@@ -1,4 +1,5 @@
 import { ArboristReport, Site, Tree, ChlorophyllReading, Job, DailyRisk, Quote } from '../types';
+import { protectionZoneTextLines } from './protectionZone';
 
 // Generic CSV export utility
 export const exportToCSV = (data: any[], filename: string, headers: string[]) => {
@@ -127,6 +128,7 @@ Tree ${index + 1}${tree.treeNumber ? ` — #${tree.treeNumber}` : ''}:
 - Tree Health: ${tree.treeHealth}
 - Structure: ${tree.structure}
 - Wound Wood Development: ${tree.woundWoodDevelopment}
+${tree.protectionZone ? protectionZoneTextLines(tree).map(l => `- ${l}`).join('\n') : ''}
 `).join('\n---\n')}
 
 ${report.notes.length > 0 ? `

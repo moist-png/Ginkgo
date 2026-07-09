@@ -137,7 +137,23 @@ export const TreeEditor: React.FC<TreeEditorProps> = ({
           )}
 
           {activeTab === 'tpz' && (
-            <TPZCalculator treeData={editingTree} />
+            <TPZCalculator
+              treeData={editingTree}
+              onUpdate={(d) => setEditingTree(prev => ({ ...prev, ...d }))}
+              isNew={isNew}
+              reports={reports}
+              onCreateReport={(updatedTreeData) => {
+                const updatedTree = { ...editingTree, ...updatedTreeData };
+                setEditingTree(updatedTree);
+                onCreateReportForTree(updatedTree);
+              }}
+              onOpenReport={(updatedTreeData, report) => {
+                const updatedTree = { ...editingTree, ...updatedTreeData };
+                setEditingTree(updatedTree);
+                const updatedReport = { ...report, trees: report.trees.map(t => t.id === updatedTree.id ? updatedTree : t) };
+                onOpenReport(updatedReport);
+              }}
+            />
           )}
 
           {activeTab === 'chlorophyll' && (

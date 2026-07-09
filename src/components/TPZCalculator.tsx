@@ -1,9 +1,14 @@
 import React, { useMemo, useState } from 'react';
-import { TreeData } from '../types';
-import { Shield, Plus, X, AlertTriangle, RotateCcw } from 'lucide-react';
+import { TreeData, ArboristReport, ProtectionZoneResult } from '../types';
+import { Shield, Plus, X, AlertTriangle, RotateCcw, Check } from 'lucide-react';
 
 interface TPZCalculatorProps {
   treeData: TreeData;
+  onUpdate: (data: TreeData) => void;
+  isNew: boolean;
+  reports: ArboristReport[];
+  onCreateReport: (updatedTreeData: TreeData) => void;
+  onOpenReport: (updatedTreeData: TreeData, report: ArboristReport) => void;
 }
 
 /**
@@ -100,20 +105,28 @@ const calcCornerEncroachment = (tpzRadius: number, srzRadius: number, wallHorizo
 
 const fmt = (n: number, dp = 2) => (Number.isFinite(n) ? n.toFixed(dp) : '—');
 
-export const TPZCalculator: React.FC<TPZCalculatorProps> = ({ treeData }) => {
-  const initialDbhCm = treeData?.dbh && treeData.dbh > 0 ? treeData.dbh : 0;
+export const TPZCalculator: React.FC<TPZCalculatorProps> = ({ treeData, onUpdate, isNew, reports, onCreateReport, onOpenReport }) => {
+  const savedZone = treeData?.protectionZone;
+  const initialDbhCm = savedZone?.dbhCm || (treeData?.dbh && treeData.dbh > 0 ? treeData.dbh : 0);
+  const initialSrzDiameterCm = savedZone?.srzDiameterCm ?? initialDbhCm;
 
   const [stemMode, setStemMode] = useState<'single' | 'multi'>('single');
   const [singleDiameterCm, setSingleDiameterCm] = useState<number>(initialDbhCm);
   const [stems, setStems] = useState<number[]>([initialDbhCm || 0, 0]);
 
-  const [srzSameAsDbh, setSrzSameAsDbh] = useState(true);
-  const [srzDiameterCmManual, setSrzDiameterCmManual] = useState<number>(initialDbhCm);
+  const [srzSameAsDbh, setSrzSameAsDbh] = useState(initialSrzDiameterCm === initialDbhCm);
+  const [srzDiameterCmManual, setSrzDiameterCmManual] = useState<number>(initialSrzDiameterCm);
 
-  const [encroachMode, setEncroachMode] = useState<'straight' | 'corner'>('straight');
-  const [encroachDistance, setEncroachDistance] = useState<string>('');
-  const [cornerHorizontal, setCornerHorizontal] = useState<string>(''); // distance to the vertical wall
-  const [cornerVertical, setCornerVertical] = useState<string>(''); // distance to the horizontal wall
+  const [encroachMode, setEncroachMode] = useState<'straight' | 'corner'>(savedZone?.encroachment?.mode ?? 'straight');
+  const [encroachDistance, setEncroachDistance] = useState<string>(
+    savedZone?.encroachment?.mode === 'straight' && savedZone.encroachment.distanceM != null ? String(savedZone.encroachment.distanceM) : ''
+  );
+  const [cornerHorizontal, setCornerHorizontal] = useState<string>(
+    savedZone?.encroachment?.mode === 'corner' && savedZone.encroachment.wallHorizontalM != null ? String(savedZone.encroachment.wallHorizontalM) : ''
+  ); // distance to the vertical wall
+  const [cornerVertical, setCornerVertical] = useState<string>(
+    savedZone?.encroachment?.mode === 'corner' && savedZone.encroachment.wallVerticalM != null ? String(savedZone.encroachment.wallVerticalM) : ''
+  ); // distance to the horizontal wall
 
   const dbhCm = stemMode === 'single' ? singleDiameterCm : combinedDbhCm(stems);
   const dbhM = dbhCm / 100;
@@ -158,6 +171,46 @@ export const TPZCalculator: React.FC<TPZCalculatorProps> = ({ treeData }) => {
   const showCorner = encroachMode === 'corner' && cornerResult && cornerResult.severity !== 'none';
   const cornerWPx = showCorner ? centre + parseFloat(cornerHorizontal) * scale : null;
   const cornerHPx = showCorner ? centre - parseFloat(cornerVertical) * scale : null;
+
+  // --- save results to Tree Data / push to a report ----------------------
+  const [saved, setSaved] = useState(false);
+
+  const buildSnapshot = (): ProtectionZoneResult => ({
+    dbhCm,
+    srzDiameterCm,
+    tpzRadiusM: tpz.radius,
+    srzRadiusM: srzRadius,
+    encroachment: encroachment ? {
+      mode: encroachMode,
+      areaPct: encroachment.areaPct,
+      severity: encroachment.severity,
+      distanceM: encroachMode === 'straight' ? parseFloat(encroachDistance) : undefined,
+      wallHorizontalM: encroachMode === 'corner' ? parseFloat(cornerHorizontal) : undefined,
+      wallVerticalM: encroachMode === 'corner' ? parseFloat(cornerVertical) : undefined,
+    } : undefined,
+    calculatedAt: Date.now(),
+  });
+
+  const mergedTreeData = (): TreeData => ({ ...treeData, protectionZone: buildSnapshot() });
+
+  const handleSaveToTree = () => {
+    onUpdate(mergedTreeData());
+    setSaved(true);
+  };
+
+  const handleNewReport = () => {
+    const data = mergedTreeData();
+    onUpdate(data);
+    onCreateReport(data);
+    setSaved(true);
+  };
+
+  const handleOpenReport = (report: ArboristReport) => {
+    const data = mergedTreeData();
+    onUpdate(data);
+    onOpenReport(data, report);
+    setSaved(true);
+  };
 
   return (
     <div className="p-4 sm:p-6 max-w-2xl mx-auto pb-16">
@@ -451,8 +504,58 @@ export const TPZCalculator: React.FC<TPZCalculatorProps> = ({ treeData }) => {
         )}
       </div>
 
+      {/* --- Save / add to report --- */}
+      <div className="rounded-xl p-4 mt-4" style={{ border: '1px solid var(--border)', background: 'var(--surface-raised)' }}>
+        <span className="section-label">Add these results to a report</span>
+        <p className="text-xs mt-1.5 mb-3" style={{ color: 'var(--text-muted)' }}>
+          Save the TPZ, SRZ, and encroachment figures above so they carry through to this tree's reports.
+        </p>
+        <button
+          onClick={handleSaveToTree}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors"
+          style={{ background: 'var(--ink)', color: 'var(--cream)' }}
+        >
+          <Check size={16} />
+          {saved ? 'Saved to Tree Data' : 'Save results to Tree Data'}
+        </button>
+
+        {isNew ? (
+          <p className="text-xs mt-3" style={{ color: 'var(--text-muted)' }}>
+            Save this tree first, then you can attach these results to a report.
+          </p>
+        ) : (
+          <div className="mt-4 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+            <button
+              onClick={handleNewReport}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors"
+              style={{ border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+            >
+              <Plus size={16} /> Start a new report with these results
+            </button>
+            {reports.length > 0 && (
+              <>
+                <p className="text-xs mt-3 mb-2" style={{ color: 'var(--text-muted)' }}>Or add to an existing report:</p>
+                <div className="space-y-2">
+                  {reports.map((r) => (
+                    <button
+                      key={r.id}
+                      onClick={() => handleOpenReport(r)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-sm transition-colors"
+                      style={{ border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                    >
+                      <span>{r.title || 'Untitled Report'}</span>
+                      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{r.status}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       <p className="text-xs mt-5" style={{ color: 'var(--text-muted)' }}>
-        Based on AS 4970-2009 "Protection of Trees on Development Sites". These figures are a guide only — species tolerance, soil, slope, and root distribution can all affect the true protection zone required. Not saved to Tree Data; re-enter or adjust figures each time you need them.
+        Based on AS 4970-2009 "Protection of Trees on Development Sites". These figures are a guide only — species tolerance, soil, slope, and root distribution can all affect the true protection zone required.
       </p>
     </div>
   );
