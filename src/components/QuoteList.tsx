@@ -50,6 +50,11 @@ export const QuoteList: React.FC<QuoteListProps> = ({
     }
   };
 
+  const needsFollowUp = (quote: Quote) => {
+    if (quote.archived || quote.status !== 'new' || !quote.followUpDate) return false;
+    return new Date(quote.followUpDate + 'T00:00:00') <= new Date(new Date().toDateString());
+  };
+
   const getStatusDotColor = (status: Quote['status']) => {
     switch (status) {
       case 'new': return 'bg-[var(--text-muted)]';
@@ -247,6 +252,11 @@ export const QuoteList: React.FC<QuoteListProps> = ({
                     <h3 className="text-xl font-semibold text-[var(--text-primary)]">
                       Quote for {quote.clientName || 'Unnamed Client'}
                     </h3>
+                    {needsFollowUp(quote) && (
+                      <span className="badge badge-red" style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                        Needs follow-up
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)] mb-3">
                     <div className="flex items-center gap-1">

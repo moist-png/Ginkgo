@@ -40,6 +40,111 @@ const downloadFile = (content: string, filename: string, mimeType: string) => {
   URL.revokeObjectURL(url);
 };
 
+// Batch PDF export — opens a print-ready window covering every selected
+// report (one per printed page) and triggers the browser's print dialog,
+// where choosing "Save as PDF" produces a single multi-report PDF.
+// No PDF library needed: this rides on what every browser already has.
+const escapeHtml = (s: any) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] || c
+));
+
+const reportToPrintHtml = (report: ArboristReport): string => `
+  <section class="report-page">
+    <h1>${escapeHtml(report.title) || 'Arborist Report'}</h1>
+    <table class="meta">
+      <tr><td>Client</td><td>${escapeHtml(report.clientName)}</td></tr>
+      <tr><td>Address</td><td>${escapeHtml(report.address)}</td></tr>
+      <tr><td>Inspector</td><td>${escapeHtml(report.inspector)}</td></tr>
+      <tr><td>Date</td><td>${escapeHtml(report.date)}</td></tr>
+      <tr><td>Status</td><td>${escapeHtml(report.status)}</td></tr>
+    </table>
+
+    <h2>Trees (${report.trees.length})</h2>
+    ${report.trees.map((tree, i) => `
+      <div class="tree-block">
+        <h3>Tree ${i + 1}${tree.treeNumber ? ` — #${escapeHtml(tree.treeNumber)}` : ''}</h3>
+        <table class="meta">
+          <tr><td>Species</td><td>${escapeHtml(tree.species)} ${tree.commonName ? `(${escapeHtml(tree.commonName)})` : ''}</td></tr>
+          <tr><td>Location</td><td>${escapeHtml(tree.location)}</td></tr>
+          <tr><td>DBH</td><td>${escapeHtml(tree.dbh)} cm</td></tr>
+          <tr><td>Height</td><td>${escapeHtml(tree.height)} m</td></tr>
+          <tr><td>Canopy Spread</td><td>${escapeHtml(tree.canopySpreadNS)} m (N-S) x ${escapeHtml(tree.canopySpreadEW)} m (E-W)</td></tr>
+          <tr><td>Health</td><td>${escapeHtml(tree.treeHealth)}</td></tr>
+          <tr><td>Structure</td><td>${escapeHtml(tree.structure)}</td></tr>
+        </table>
+      </div>
+    `).join('')}
+
+    ${report.notes.length > 0 ? `
+      <h2>Notes</h2>
+      ${report.notes.map(n => `<div class="note-block"><strong>${escapeHtml(n.title)}</strong> (${escapeHtml(n.category)})<p>${escapeHtml(n.content)}</p></div>`).join('')}
+    ` : ''}
+
+    ${report.recommendations.length > 0 ? `
+      <h2>Recommendations</h2>
+      <ol>${report.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ol>
+    ` : ''}
+
+    ${report.photos.length > 0 ? `
+      <h2>Photos</h2>
+      <div class="photo-grid">
+        ${report.photos.map(p => `
+          <figure>
+            <img src="${escapeHtml(p.url)}" />
+            <figcaption>${escapeHtml(p.category)}${p.caption ? ` — ${escapeHtml(p.caption)}` : ''}</figcaption>
+          </figure>
+        `).join('')}
+      </div>
+    ` : ''}
+  </section>
+`;
+
+export const exportReportsBatchPDF = (reports: ArboristReport[]) => {
+  if (reports.length === 0) return;
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('Your browser blocked the print window. Please allow pop-ups for this site and try again.');
+    return;
+  }
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Reports Export</title>
+<style>
+  body { font-family: Georgia, 'Times New Roman', serif; color: #2a2823; margin: 0; padding: 0; }
+  .report-page { padding: 32px 40px; page-break-after: always; }
+  .report-page:last-child { page-break-after: auto; }
+  h1 { font-size: 24px; margin: 0 0 16px; }
+  h2 { font-size: 16px; margin: 24px 0 8px; border-bottom: 1px solid #ddd7c9; padding-bottom: 4px; }
+  h3 { font-size: 14px; margin: 16px 0 6px; }
+  table.meta { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 8px; }
+  table.meta td { padding: 3px 8px 3px 0; vertical-align: top; }
+  table.meta td:first-child { color: #6f6a5e; width: 140px; font-weight: 600; }
+  .tree-block { margin-bottom: 12px; }
+  .note-block { font-size: 13px; margin-bottom: 10px; }
+  .note-block p { margin: 2px 0 0; }
+  ol { font-size: 13px; padding-left: 20px; }
+  .photo-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+  .photo-grid figure { width: 140px; margin: 0; font-size: 10px; text-align: center; }
+  .photo-grid img { width: 140px; height: 105px; object-fit: cover; border: 1px solid #ddd7c9; }
+  @media print { body { -webkit-print-color-adjust: exact; } }
+</style>
+</head>
+<body>
+${reports.map(reportToPrintHtml).join('')}
+<script>
+  window.onload = function () {
+    setTimeout(function () { window.print(); }, 400);
+  };
+</script>
+</body>
+</html>`;
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+};
+
 // Site exports
 export const exportSitesCSV = (sites: Site[]) => {
   const headers = ['name', 'description', 'address', 'clientName', 'inspector', 'status', 'createdAt', 'updatedAt'];

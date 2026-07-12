@@ -426,6 +426,28 @@ export const QuoteEditor: React.FC<QuoteEditorProps> = ({
                 </div>
               </div>
             </div>
+
+            <div className="mt-6 pt-6 border-t border-[var(--border)]">
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
+                Follow up on
+              </label>
+              <input
+                type="date"
+                value={editingQuote.followUpDate || ''}
+                onChange={(e) => updateQuote('followUpDate', e.target.value)}
+                className="w-full px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+              />
+              <p className="text-xs text-[var(--text-muted)] mt-2">
+                If this quote is still 'New' by this date, it'll show up as needing a follow-up in the Quotes list.
+              </p>
+              <textarea
+                value={editingQuote.followUpNote || ''}
+                onChange={(e) => updateQuote('followUpNote', e.target.value)}
+                placeholder="Follow-up note (e.g. 'waiting on their insurer', 'call after 5pm')"
+                rows={2}
+                className="w-full mt-3 px-3 py-2 border border-[var(--border)] rounded-lg focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+              />
+            </div>
           </div>
 
           {!isNew && (

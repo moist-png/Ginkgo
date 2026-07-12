@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { ArboristReport, Site } from '../types';
 import { formatDate } from '../utils/storage';
-import { Plus, Search, FileText, TreePine, Calendar, User, MapPin, Building2, Download } from 'lucide-react';
-import { exportReportsCSV } from '../utils/exportUtils';
+import { Plus, Search, FileText, TreePine, Calendar, User, MapPin, Building2, Download, CheckSquare, Square, X, Printer } from 'lucide-react';
+import { exportReportsCSV, exportReportsBatchPDF } from '../utils/exportUtils';
 import { canUserEdit } from '../utils/auth';
 import { ExportModal } from './ExportModal';
 
@@ -24,7 +24,15 @@ export const ReportList: React.FC<ReportListProps> = ({
   onSearchChange
 }) => {
   const [showExportModal, setShowExportModal] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const canEdit = canUserEdit();
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds([]); };
 
   const getStatusColor = (status: ArboristReport['status']) => {
     switch (status) {
@@ -55,21 +63,51 @@ export const ReportList: React.FC<ReportListProps> = ({
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <h1 className="text-3xl font-bold text-[var(--text-primary)]">Reports</h1>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowExportModal(true)}
-            className="p-2 border border-[var(--border)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--forest)] transition-colors"
-            title="Export Data"
-          >
-            <Download size={16} />
-          </button>
-          {canEdit && (
-            <button
-              onClick={onCreateReport}
-              className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
-            >
-              <Plus size={20} />
-              New Report
-            </button>
+          {selectMode ? (
+            <>
+              <button
+                onClick={() => { exportReportsBatchPDF(reports.filter(r => selectedIds.includes(r.id))); }}
+                disabled={selectedIds.length === 0}
+                className="flex items-center gap-2 bg-[var(--ink)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--accent)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Printer size={16} />
+                Export {selectedIds.length || ''} as PDF
+              </button>
+              <button
+                onClick={exitSelectMode}
+                className="p-2 border border-[var(--border)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--forest)] transition-colors"
+                title="Cancel"
+              >
+                <X size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setSelectMode(true)}
+                className="flex items-center gap-2 p-2 px-3 border border-[var(--border)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--forest)] transition-colors text-sm"
+                title="Select multiple reports to export as one PDF"
+              >
+                <CheckSquare size={16} />
+                Batch Export
+              </button>
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="p-2 border border-[var(--border)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--forest)] transition-colors"
+                title="Export Data"
+              >
+                <Download size={16} />
+              </button>
+              {canEdit && (
+                <button
+                  onClick={onCreateReport}
+                  className="flex items-center gap-2 bg-[var(--canopy)] text-[var(--cream)] px-4 py-2 rounded-lg hover:bg-[var(--forest-light)] transition-colors"
+                >
+                  <Plus size={20} />
+                  New Report
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -106,12 +144,18 @@ export const ReportList: React.FC<ReportListProps> = ({
           filteredReports.map((report) => (
             <div
               key={report.id}
-              onClick={() => onSelectReport(report)}
+              onClick={() => selectMode ? toggleSelected(report.id) : onSelectReport(report)}
               className="bg-[var(--surface-raised)] rounded-lg shadow-md border border-[var(--border)] p-6 hover:shadow-lg transition-shadow cursor-pointer"
+              style={selectMode && selectedIds.includes(report.id) ? { borderColor: 'var(--accent)', background: 'var(--surface-overlay)' } : undefined}
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
+                    {selectMode && (
+                      selectedIds.includes(report.id)
+                        ? <CheckSquare size={18} color="var(--accent)" />
+                        : <Square size={18} color="var(--text-muted)" />
+                    )}
                     <h3 className="text-xl font-semibold text-[var(--text-primary)]">
                       {report.title || 'Untitled Report'}
                     </h3>

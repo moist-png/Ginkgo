@@ -198,6 +198,8 @@ export interface Quote {
   status: 'new' | 'scheduled' | 'completed';
   archived: boolean;
   assignedTo: string[]; // team_members.id values
+  followUpDate?: string; // date this quote should be chased up if still 'new'
+  followUpNote?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -215,6 +217,89 @@ export interface AuthState {
   isAuthenticated: boolean;
   user: User | null;
   isGuest: boolean;
+}
+
+export const CERT_TYPES = [
+  'Chainsaw Ticket',
+  'EWP Licence',
+  'White Card',
+  'First Aid',
+  'Working at Heights',
+  'ChemCert',
+  'Cert III/IV Arboriculture',
+  'Other',
+] as const;
+
+export interface TeamCertification {
+  id: string;
+  teamMemberId: string;
+  certType: typeof CERT_TYPES[number];
+  certLabel: string; // used when certType === 'Other'
+  certNumber: string;
+  issuedDate?: string;
+  expiryDate?: string;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export const EQUIPMENT_CATEGORIES = [
+  'Chainsaw',
+  'Chipper',
+  'Stump Grinder',
+  'EWP',
+  'Climbing Gear',
+  'Vehicle',
+  'Trailer',
+  'Other',
+] as const;
+
+export interface Equipment {
+  id: string;
+  name: string;
+  category: typeof EQUIPMENT_CATEGORIES[number];
+  serialNumber: string;
+  purchaseDate?: string;
+  lastServiceDate?: string;
+  nextServiceDue?: string;
+  status: 'active' | 'in-repair' | 'retired';
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export interface Permit {
+  id: string;
+  siteId: string;
+  permitType: 'Removal' | 'Pruning' | 'Other';
+  authority: string;
+  referenceNumber: string;
+  status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'expired';
+  submittedDate?: string;
+  decisionDate?: string;
+  expiryDate?: string;
+  conditions: string;
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export interface Contract {
+  id: string;
+  siteId: string;
+  title: string;
+  frequencyMonths: number;
+  nextDueDate: string;
+  jobType: Job['jobType'];
+  defaultAssignedTo: string[];
+  notes: string;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
 }
 
 export interface EmailQuoteRequest {

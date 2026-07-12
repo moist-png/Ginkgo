@@ -15,6 +15,7 @@
 
 import type {
   ArboristReport, Tree, TreeData, Job, Site, Quote, DailyRisk, ChlorophyllReading,
+  TeamCertification, Equipment, Permit, Contract,
 } from '../types';
 
 const nowIso = () => new Date().toISOString();
@@ -208,6 +209,8 @@ export const fromDbQuote = (q: any): Quote => ({
   status: (q?.status as Quote['status']) || 'new',
   archived: Boolean(q?.archived),
   assignedTo: arr<string>(q?.assigned_to ?? q?.assignedTo),
+  followUpDate: q?.follow_up_date ?? q?.followUpDate ?? undefined,
+  followUpNote: str(q?.follow_up_note ?? q?.followUpNote),
   createdAt: Date.now(),
   updatedAt: Date.now(),
 });
@@ -226,6 +229,8 @@ export const toDbQuote = (q: Quote): Record<string, any> => ({
   status: q.status || 'new',
   archived: Boolean(q.archived),
   assigned_to: arr<string>(q.assignedTo),
+  follow_up_date: q.followUpDate || null,
+  follow_up_note: str(q.followUpNote),
   updated_at: nowIso(),
 });
 
@@ -284,5 +289,119 @@ export const toDbChlorophyll = (c: ChlorophyllReading): Record<string, any> => (
   chlorophyll_level: num(c.chlorophyllLevel),
   extension_growth: num(c.extensionGrowth),
   notes: str(c.notes),
+  updated_at: nowIso(),
+});
+
+// ---- Team Certification ----------------------------------------------------
+export const fromDbCertification = (c: any): TeamCertification => ({
+  id: str(c?.id) || crypto.randomUUID(),
+  teamMemberId: str(c?.team_member_id ?? c?.teamMemberId),
+  certType: (c?.cert_type ?? c?.certType) || 'Other',
+  certLabel: str(c?.cert_label ?? c?.certLabel),
+  certNumber: str(c?.cert_number ?? c?.certNumber),
+  issuedDate: c?.issued_date ?? c?.issuedDate ?? undefined,
+  expiryDate: c?.expiry_date ?? c?.expiryDate ?? undefined,
+  notes: str(c?.notes),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+});
+
+export const toDbCertification = (c: TeamCertification): Record<string, any> => ({
+  id: c.id,
+  team_member_id: c.teamMemberId,
+  cert_type: c.certType || 'Other',
+  cert_label: str(c.certLabel),
+  cert_number: str(c.certNumber),
+  issued_date: c.issuedDate || null,
+  expiry_date: c.expiryDate || null,
+  notes: str(c.notes),
+  updated_at: nowIso(),
+});
+
+// ---- Equipment --------------------------------------------------------------
+export const fromDbEquipment = (e: any): Equipment => ({
+  id: str(e?.id) || crypto.randomUUID(),
+  name: str(e?.name),
+  category: (e?.category as Equipment['category']) || 'Other',
+  serialNumber: str(e?.serial_number ?? e?.serialNumber),
+  purchaseDate: e?.purchase_date ?? e?.purchaseDate ?? undefined,
+  lastServiceDate: e?.last_service_date ?? e?.lastServiceDate ?? undefined,
+  nextServiceDue: e?.next_service_due ?? e?.nextServiceDue ?? undefined,
+  status: (e?.status as Equipment['status']) || 'active',
+  notes: str(e?.notes),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+});
+
+export const toDbEquipment = (e: Equipment): Record<string, any> => ({
+  id: e.id,
+  name: str(e.name),
+  category: e.category || 'Other',
+  serial_number: str(e.serialNumber),
+  purchase_date: e.purchaseDate || null,
+  last_service_date: e.lastServiceDate || null,
+  next_service_due: e.nextServiceDue || null,
+  status: e.status || 'active',
+  notes: str(e.notes),
+  updated_at: nowIso(),
+});
+
+// ---- Permit -------------------------------------------------------------
+export const fromDbPermit = (p: any): Permit => ({
+  id: str(p?.id) || crypto.randomUUID(),
+  siteId: str(p?.site_id ?? p?.siteId),
+  permitType: (p?.permit_type ?? p?.permitType) || 'Removal',
+  authority: str(p?.authority),
+  referenceNumber: str(p?.reference_number ?? p?.referenceNumber),
+  status: (p?.status as Permit['status']) || 'draft',
+  submittedDate: p?.submitted_date ?? p?.submittedDate ?? undefined,
+  decisionDate: p?.decision_date ?? p?.decisionDate ?? undefined,
+  expiryDate: p?.expiry_date ?? p?.expiryDate ?? undefined,
+  conditions: str(p?.conditions),
+  notes: str(p?.notes),
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+});
+
+export const toDbPermit = (p: Permit): Record<string, any> => ({
+  id: p.id,
+  site_id: p.siteId,
+  permit_type: p.permitType || 'Removal',
+  authority: str(p.authority),
+  reference_number: str(p.referenceNumber),
+  status: p.status || 'draft',
+  submitted_date: p.submittedDate || null,
+  decision_date: p.decisionDate || null,
+  expiry_date: p.expiryDate || null,
+  conditions: str(p.conditions),
+  notes: str(p.notes),
+  updated_at: nowIso(),
+});
+
+// ---- Contract (recurring maintenance) -------------------------------------
+export const fromDbContract = (c: any): Contract => ({
+  id: str(c?.id) || crypto.randomUUID(),
+  siteId: str(c?.site_id ?? c?.siteId),
+  title: str(c?.title),
+  frequencyMonths: num(c?.frequency_months ?? c?.frequencyMonths, 12),
+  nextDueDate: str(c?.next_due_date ?? c?.nextDueDate) || nowIso().split('T')[0],
+  jobType: (c?.job_type ?? c?.jobType) || 'assessment',
+  defaultAssignedTo: arr<string>(c?.default_assigned_to ?? c?.defaultAssignedTo),
+  notes: str(c?.notes),
+  active: c?.active !== false,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+});
+
+export const toDbContract = (c: Contract): Record<string, any> => ({
+  id: c.id,
+  site_id: c.siteId,
+  title: str(c.title),
+  frequency_months: num(c.frequencyMonths, 12),
+  next_due_date: c.nextDueDate,
+  job_type: c.jobType || 'assessment',
+  default_assigned_to: arr<string>(c.defaultAssignedTo),
+  notes: str(c.notes),
+  active: c.active !== false,
   updated_at: nowIso(),
 });
