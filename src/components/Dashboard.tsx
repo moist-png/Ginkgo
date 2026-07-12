@@ -3,7 +3,7 @@ import { supabase, Site, Job, Quote, Report } from '../utils/supabase';
 import { getPendingCount, syncQueue, isOnline } from '../utils/offline';
 import {
   TreePine, Briefcase, FileText, Users, Clock, AlertTriangle,
-  TrendingUp, Calendar, MapPin, ChevronRight, RefreshCw, Wifi, WifiOff
+  TrendingUp, Calendar, MapPin, ChevronRight, RefreshCw, Wifi, WifiOff, Repeat
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -17,6 +17,8 @@ interface Stats {
   completedJobsThisMonth: number;
   totalReports: number;
   pendingQuotes: number;
+  followUpQuotes: number;
+  contractsDue: number;
   upcomingJobs: Job[];
   recentSites: Site[];
   recentJobs: Job[];
@@ -25,7 +27,7 @@ interface Stats {
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
   const [stats, setStats] = useState<Stats>({
     totalSites: 0, totalJobs: 0, activeJobs: 0, completedJobsThisMonth: 0,
-    totalReports: 0, pendingQuotes: 0, upcomingJobs: [], recentSites: [], recentJobs: []
+    totalReports: 0, pendingQuotes: 0, followUpQuotes: 0, contractsDue: 0, upcomingJobs: [], recentSites: [], recentJobs: []
   });
   const [loading, setLoading] = useState(true);
   const [pendingSync, setPendingSync] = useState(0);
@@ -56,12 +58,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const today = now.toISOString().split('T')[0];
+      const in30Days = new Date(now.getTime() + 30 * 86400000).toISOString().split('T')[0];
 
-      const [sitesRes, jobsRes, reportsRes, quotesRes] = await Promise.all([
+      const [sitesRes, jobsRes, reportsRes, quotesRes, followUpRes, contractsRes] = await Promise.all([
         supabase.from('sites').select('*').is('deleted_at', null).order('updated_at', { ascending: false }),
         supabase.from('jobs').select('*').is('deleted_at', null).order('date', { ascending: false }),
         supabase.from('reports').select('id').is('deleted_at', null),
         supabase.from('quotes').select('id').eq('status', 'new').eq('archived', false),
+        supabase.from('quotes').select('id').eq('status', 'new').eq('archived', false).lte('follow_up_date', today),
+        supabase.from('contracts').select('id').eq('active', true).lte('next_due_date', in30Days),
       ]);
 
       const sites: Site[] = sitesRes.data || [];
@@ -81,6 +86,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         completedJobsThisMonth: completedThisMonth.length,
         totalReports: reportsRes.data?.length || 0,
         pendingQuotes: quotesRes.data?.length || 0,
+        followUpQuotes: followUpRes.data?.length || 0,
+        contractsDue: contractsRes.data?.length || 0,
         upcomingJobs: upcoming,
         recentSites: sites.slice(0, 4),
         recentJobs: jobs.slice(0, 5),
@@ -158,6 +165,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         {[
           { label: 'Tree Reports', value: stats.totalReports, icon: FileText, primary: true, action: 'sites' },
           { label: 'Pending Quotes', value: stats.pendingQuotes, icon: Clock, primary: false, action: 'quotes' },
+          { label: 'Quotes to Follow Up', value: stats.followUpQuotes, icon: AlertTriangle, primary: false, action: 'quotes' },
+          { label: 'Contracts Due', value: stats.contractsDue, icon: Repeat, primary: false, action: 'contracts' },
         ].map(({ label, value, icon: Icon, primary, action }) => (
           <div key={label} onClick={() => onNavigate(action)} className="card" style={{ padding: '20px', cursor: 'pointer' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
@@ -261,6 +270,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             { label: 'New Quote', icon: FileText, action: 'new-quote' },
             { label: 'Risk Assessment', icon: AlertTriangle, action: 'new-risk' },
             { label: 'Team', icon: Users, action: 'team' },
+            { label: 'Contracts', icon: Repeat, action: 'contracts' },
+            { label: 'Equipment', icon: Briefcase, action: 'equipment' },
           ].map(({ label, icon: Icon, action }) => (
             <button key={action} onClick={() => onNavigate(action)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',

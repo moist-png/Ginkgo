@@ -22,15 +22,19 @@ import { PortalView } from './components/ClientPortal';
 import { InviteJoin } from './components/InviteJoin';
 import { MessageBoard } from './components/MessageBoard';
 import { NotificationBell } from './components/NotificationBell';
+import { EquipmentRegister } from './components/EquipmentRegister';
+import { PermitTracker } from './components/PermitTracker';
+import { ContractList } from './components/ContractList';
+import type { Site } from './types';
 import { db, getPendingCount, syncQueue } from './utils/offline';
 import { fromDbSite, fromDbReport, fromDbTree, fromDbJob, fromDbQuote, fromDbRisk, toDbTree } from './utils/mappers';
 import ginkgoMark from './assets/ginkgo-mark.png';
 import {
   Home, TreePine, Shield, FileText, Menu, X,
-  LogOut, Trash2, Users, LayoutDashboard, WifiOff, MessageSquare
+  LogOut, Trash2, Users, LayoutDashboard, WifiOff, MessageSquare, Wrench, Scroll, Repeat
 } from 'lucide-react';
 
-type AppView = 'dashboard' | 'sites' | 'reports' | 'jobs' | 'daily-risk' | 'quotes' | 'team' | 'board';
+type AppView = 'dashboard' | 'sites' | 'reports' | 'jobs' | 'daily-risk' | 'quotes' | 'team' | 'board' | 'equipment' | 'permits' | 'contracts';
 
 // Check if we're on a portal URL
 const getPortalToken = () => {
@@ -53,7 +57,7 @@ function App() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState<AppView>('dashboard');
-  const [siteDetailSubView, setSiteDetailSubView] = useState<'trees' | 'reports' | 'work-done'>('trees');
+  const [siteDetailSubView, setSiteDetailSubView] = useState<'trees' | 'reports' | 'work-done' | 'permits' | 'protection-zones'>('trees');
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [selectedTree, setSelectedTree] = useState<any>(null);
   const [selectedSite, setSelectedSite] = useState<any>(null);
@@ -215,6 +219,9 @@ function App() {
     { view: 'jobs' as AppView, icon: TreePine, label: 'Jobs' },
     { view: 'daily-risk' as AppView, icon: Shield, label: 'Risk' },
     { view: 'quotes' as AppView, icon: FileText, label: 'Quotes' },
+    { view: 'contracts' as AppView, icon: Repeat, label: 'Contracts' },
+    { view: 'equipment' as AppView, icon: Wrench, label: 'Equipment' },
+    { view: 'permits' as AppView, icon: Scroll, label: 'Permits' },
     { view: 'team' as AppView, icon: Users, label: 'Team' },
     { view: 'board' as AppView, icon: MessageSquare, label: 'Board' },
   ];
@@ -402,6 +409,12 @@ function App() {
         {currentView === 'quotes' && <QuoteList quotes={quotes} teamMembers={teamMembers} onSelectQuote={setSelectedQuote} onCreateQuote={() => { setSelectedQuote({ id: crypto.randomUUID(), client_name: '', address: '', mobile: '', site_contact: '', scheduled_date: today(), scheduled_time: '09:00', job_description: [{ id: crypto.randomUUID(), description: '' }], additional_equipment: '', access_parking: '', status: 'new', archived: false, assigned_to: [], created_at: nowIso(), updated_at: nowIso() }); setIsNewItem(true); }} onImportQuotes={() => {}} onUpdateQuoteStatus={handleUpdateQuoteStatus} searchQuery={searchQuery} onSearchChange={setSearchQuery} />}
 
         {currentView === 'board' && <MessageBoard teamMembers={teamMembers} />}
+
+        {currentView === 'equipment' && <EquipmentRegister />}
+
+        {currentView === 'permits' && <PermitTracker sites={sites as Site[]} />}
+
+        {currentView === 'contracts' && <ContractList sites={sites as Site[]} teamMembers={teamMembers} onJobCreated={loadCoreData} />}
       </main>
 
       <RecentlyDeleted isOpen={showRecentlyDeleted} onClose={() => setShowRecentlyDeleted(false)} onRecover={() => { loadCoreData(); setShowRecentlyDeleted(false); }} />

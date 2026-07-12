@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Tree, ArboristReport, Site, Job } from '../types';
 import { formatDate } from '../utils/storage';
-import { Plus, Search, TreePine, Calendar, ArrowLeft, Building2, MapPin, Upload, Download, Briefcase, FileText } from 'lucide-react';
+import { Plus, Search, TreePine, Calendar, ArrowLeft, Building2, MapPin, Upload, Download, Briefcase, FileText, Scroll, Compass } from 'lucide-react';
 import { ImportModal } from './ImportModal';
 import { WorkDoneList } from './WorkDoneList';
+import { PermitTracker } from './PermitTracker';
+import { SiteProtectionZoneOverview } from './SiteProtectionZoneOverview';
 import { exportTreesCSV, exportSiteReport } from '../utils/exportUtils';
 import { canUserEdit } from '../utils/auth';
 import { ExportModal } from './ExportModal';
 
-type SiteDetailSubView = 'trees' | 'reports' | 'work-done';
+type SiteDetailSubView = 'trees' | 'reports' | 'work-done' | 'permits' | 'protection-zones';
 
 interface SiteDetailScreenProps {
   site: Site;
@@ -213,6 +215,32 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
                 Work Done ({siteJobs.length})
               </div>
             </button>
+            <button
+              onClick={() => onSitesSubViewChange('permits')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                sitesSubView === 'permits'
+                  ? 'border-[var(--moss)] text-[var(--leaf)]'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border)]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Scroll size={16} />
+                Permits
+              </div>
+            </button>
+            <button
+              onClick={() => onSitesSubViewChange('protection-zones')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors ${
+                sitesSubView === 'protection-zones'
+                  ? 'border-[var(--moss)] text-[var(--leaf)]'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--border)]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Compass size={16} />
+                Protection Zones
+              </div>
+            </button>
           </nav>
         </div>
 
@@ -384,6 +412,14 @@ export const SiteDetailScreen: React.FC<SiteDetailScreenProps> = ({
             searchQuery={searchQuery}
             onSearchChange={onSearchChange}
           />
+        )}
+
+        {sitesSubView === 'permits' && (
+          <PermitTracker sites={[site]} siteId={site.id} />
+        )}
+
+        {sitesSubView === 'protection-zones' && (
+          <SiteProtectionZoneOverview trees={trees} />
         )}
       </div>
 
