@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { supabase, TeamMember } from '../utils/supabase';
-import { Plus, User, Phone, Mail, Trash2, Edit2, Check, X, UserCheck, Link2, Copy, CheckCircle2, Award } from 'lucide-react';
+import { Plus, User, Phone, Mail, Trash2, Edit2, Check, X, UserCheck, Link2, Copy, CheckCircle2, Award, Wrench } from 'lucide-react';
 import {
   getCurrentUser, getCurrentTeamMember, isSupervisorOrAbove, isAdmin,
   claimTeamMember, refreshCurrentTeamMember, TEAM_MEMBER_CHANGED_EVENT,
 } from '../utils/auth';
 import { CertificationTracker } from './CertificationTracker';
+import { EquipmentRegister } from './EquipmentRegister';
 
 // Neutral badge treatment for every role — keeps the single accent colour
 // meaningful rather than hue-coding each permission level.
@@ -32,7 +33,7 @@ export const TeamManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [, forceRender] = useState(0);
-  const [activeTab, setActiveTab] = useState<'members' | 'certifications'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'certifications' | 'equipment'>('members');
 
   useEffect(() => {
     loadMembers();
@@ -132,13 +133,18 @@ export const TeamManagement: React.FC = () => {
         <button onClick={() => setActiveTab('members')} style={{ padding: '9px 4px', marginRight: '20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: activeTab === 'members' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'members' ? 'var(--accent)' : 'var(--text-muted)' }}>
           Members
         </button>
-        <button onClick={() => setActiveTab('certifications')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 4px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: activeTab === 'certifications' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'certifications' ? 'var(--accent)' : 'var(--text-muted)' }}>
+        <button onClick={() => setActiveTab('certifications')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 4px', marginRight: '20px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: activeTab === 'certifications' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'certifications' ? 'var(--accent)' : 'var(--text-muted)' }}>
           <Award size={14} /> Certifications
+        </button>
+        <button onClick={() => setActiveTab('equipment')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 4px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: activeTab === 'equipment' ? '2px solid var(--accent)' : '2px solid transparent', color: activeTab === 'equipment' ? 'var(--accent)' : 'var(--text-muted)' }}>
+          <Wrench size={14} /> Equipment
         </button>
       </div>
 
       {activeTab === 'certifications' ? (
         <CertificationTracker />
+      ) : activeTab === 'equipment' ? (
+        <EquipmentRegister />
       ) : (
       <>
       {!myTeamMemberId && !loading && (

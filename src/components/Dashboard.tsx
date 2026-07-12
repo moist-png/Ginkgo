@@ -271,7 +271,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             { label: 'Risk Assessment', icon: AlertTriangle, action: 'new-risk' },
             { label: 'Team', icon: Users, action: 'team' },
             { label: 'Contracts', icon: Repeat, action: 'contracts' },
-            { label: 'Equipment', icon: Briefcase, action: 'equipment' },
+            { label: 'Equipment', icon: Briefcase, action: 'team' },
           ].map(({ label, icon: Icon, action }) => (
             <button key={action} onClick={() => onNavigate(action)} style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
